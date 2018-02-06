@@ -13,5 +13,10 @@
 
 extern String debug;
 
+void debugPrintlnSI(String s, int i);
+
+void debugPrintlnSC(String s, char* cc, int len);
+
+void debugPrintlnSX(String s, uint8_t* cc, int len);
 
 #endif /* SRC_MY_DEBUG_H_ */

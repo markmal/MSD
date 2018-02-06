@@ -5,12 +5,14 @@
  *      Author: mark
  */
 
-#ifndef SRC_MSC_H_
-#define SRC_MSC_H_
+#ifndef MSC__MSC_h
+#define MSC__MSC_h
 
 #include <stdint.h>
 #include <Arduino.h>
 #include <USB/PluggableUSB.h>
+#include "SCSI.h"
+#include "SCSIDevice.h"
 
 #define EPTYPE_DESCRIPTOR_SIZE		uint32_t
 #define USB_SendControl				USBDevice.sendControl
@@ -89,6 +91,7 @@ struct USB_MSC_CBW {
 	uint8_t bCBWLUN;	//!< Logical Unit Number
 	uint8_t bCBWCBLength;	//!< Number of valid CBWCB bytes
 	uint8_t CBWCB[16];	//!< SCSI Command Descriptor Block
+	uint8_t alignTo32b;
 };
 
 #define  USB_CBW_SIZE          		31	//!< CBW size
@@ -118,7 +121,8 @@ struct USB_MSC_CSW {
 
 
 
-#define BLOCK_DATA_SZ 512
+//#define MSC_BLOCK_DATA_SZ 512
+#define MSC_BLOCK_DATA_SZ 64
 //extern byte blockData[BLOCK_DATA_SZ];
 //extern String debug;
 
@@ -126,7 +130,6 @@ struct USB_MSC_CSW {
  * and declare how many endpoints and interfaces it needs to allocate
  */
 
-#include "SCSIDevice.h"
 
 class MSC_: public PluggableUSBModule {
 
@@ -134,7 +137,7 @@ public:
 	MSC_();
 	virtual ~MSC_();
 	uint32_t receiveBlock(); // receives block from USB
-	uint32_t sendBlock(); // sends block to USB
+	//uint32_t sendBlock(); // sends block to USB
 	//bool begin();
 
 protected:
@@ -143,14 +146,20 @@ protected:
   int getDescriptor(USBSetup& setup);
   bool setup(USBSetup& setup);
   uint8_t getShortName(char* name);
-
   bool reset();
 
+  uint32_t receiveInBlock(); // receives IN block from USB
+  uint32_t receiveOutBlock(); // receives OUT block from USB
+
 private:
-  EPTYPE_DESCRIPTOR_SIZE epType[NUM_ENDPOINTS];   ///< Container that defines the two bulk MIDI IN/OUT endpoints types
+  USB_MSC_CBW cbw;
+  USB_MSC_CSW csw;
   SCSIDevice scsiDev;
-  uint8_t txEndpoint;
-  uint8_t rxEndpoint;
+  uint32_t txEndpoint;
+  uint32_t rxEndpoint;
+  EPTYPE_DESCRIPTOR_SIZE epType[NUM_ENDPOINTS];   ///< Container that defines the two bulk MIDI IN/OUT endpoints types
+  //uint8_t response[4096];
+  uint8_t* data; // = (uint8_t*)response;
 
   //const uint32_t *endpointType;
   //uint16_t descriptorSize;
@@ -166,4 +175,4 @@ private:
 //extern MSC_& MSC();
 //extern MSC_ MSC;
 
-#endif /* SRC_MSC_H_ */
+#endif /* MSC_h_ */

@@ -5,12 +5,11 @@
  *      Author: mark
  */
 
+#ifndef MSC__SCSI_h
+#define MSC__SCSI_h
+
 #include <stdint.h>
 #include "my_debug.h"
-#include "MSC.h"
-
-#ifndef SRC_SCSI_H_
-#define SRC_SCSI_H_
 
 // SCSI commands ref: https://www.seagate.com/staticfiles/support/disc/manuals/scsi/100293068a.pdf
 
@@ -57,20 +56,24 @@ struct SCSI_CBD_INQUIRY {
 #define SCSI_SBC2	0x00 // Direct access block device (e.g., magnetic disk)
 #define SCSI_RBC	0x0E // Simplified direct-access device (e.g., magnetic disk) -- Windows does not support it
 
+#define SCSI_SPC2	0x04 // The device complies to ANSI INCITS 351-2001 (SPC-2)
+
 union SCSI_STANDARD_INQUIRY_DATA{
 	struct INQUIRY {
-	uint8_t peripheral_device_type:5, peripheral_qualifier;
+	uint8_t peripheral_device_type:5, peripheral_qualifier:3;
 	uint8_t reserv1:7, RMB:1; // = INQUIRY_RMB_REMOVABLE; // RMB(bit 7), resrved(0-6)
 	uint8_t version; //=0;
 	//uint8_t ACA_flags; //=0; // Obsolete(7-6), NORMACA(5), HISUP(4), Response Data Format(0-3)
 	uint8_t response_data_format:4, HISUP:1, NORMACA:1, obsolete1:2;
 	uint8_t additional_length; // N-4
+
 	//uint8_t SCSI_flags; //=0; // SCCS(7) ACCS(6) TPGS(5-4) 3PC(3) resrved(1-2) PROTECT(0)
 	uint8_t protect:1, reserv2:2, b3PC:1, TPGS:2, ACC:1, SCCS:1;
 	//uint8_t BQue_flags; //=0; // BQUE(7) ENSERV(6) VS(5) MULTIP(4) MCHNGR(3) Obsolete(1-2) ADDR16(0)
 	uint8_t adr16:1, obsolete2:2, MCHNGR:1, MULTIP:1, VS:1, ENSERV:1, BQUE:1;
 	//uint8_t RelAdr_flags; //=0; // Obsolete(7-6) WUSB16(5) SYNC(4) LINKED(3) Obsolete(2) CMDQUE(1) VS(0)
-	uint8_t VS2:1, CMDQUE:1, obsolete:3, linked:1, SYNC:1, WBUS16:1, obsolete4:2;
+	uint8_t VS2:1, CMDQUE:1, obsolete3:1, linked:1, SYNC:1, WBUS16:1, obsolete4:2;
+
 	uint8_t t10_vendor_id[8]; //={'M','M','7',' ',' ',' ',' ',' '};
 	uint8_t product_id[16]; //={'S','V','M','L',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '};
 	uint8_t product_revision_level[4]; //={'0','0','0','1'};
@@ -141,9 +144,9 @@ union SCSI_CAPACITY_DATA_16 {
 struct SCSI_CBD_READ_10 {
 	  uint8_t	opcode; // 0x28
 	  uint8_t	obsolete:1, FUA_NV:1, reserv1:1, FUA:1, DPO:1, RDPROTECT:3;
-	  uint32_t	LBA;
+	  uint8_t	LBA_a[4];
 	  uint8_t	GROUP_NO:5, reserv2:3;
-	  uint16_t	length;
+	  uint8_t	length_a[2];
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[6];
 };
@@ -186,16 +189,19 @@ struct SCSI_CBD_MODE_SENSE_6 {
 	  uint8_t	reserv1:3, DBD:1, reserv2:4;
 	  uint8_t	page_code:6, PC:2; //for Mode Sense. Page Code
 	  uint8_t	subpage_code;
-	  uint8_t	length;
+	  uint8_t	allocation_length;
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
 
-struct SCSI_CBD_MODE_SENSE_DATA_6 {
-	  uint8_t	mode_data_length;
+union SCSI_CBD_MODE_SENSE_DATA_6 {
+	struct FIELDS {
+  	  uint8_t	mode_data_length;
 	  uint8_t	medium_type;
 	  uint8_t	dev_specific_param;
 	  uint8_t	block_descr_length;
+	} fields;
+	uint8_t array[4];
 };
 
 
@@ -255,8 +261,21 @@ union SCSI_CBD {
 #define SCSI_UNSUPPORTED_OPERATION	-1
 
 #define MEDIA_READY					0
-#define MEDIA_READ_ERROR 			-2
-#define NO_MEDIA					-3
-#define MEDIA_BUSY					-4
+#define ERROR_MEDIA_READ 			-2
+#define ERROR_NO_MEDIA				-3
+#define ERROR_MEDIA_BUSY			-4
 
-#endif /* SRC_SCSI_H_ */
+
+/*
+uint16_t msb2lsb(uint16_t v);
+uint32_t msb2lsb(uint32_t v);
+uint64_t msb2lsb(uint64_t v);
+*/
+
+void msb2lsb(uint16_t& s, uint16_t& d);
+void msb2lsb(uint32_t& s, uint32_t& d);
+void msb2lsb(uint64_t& s, uint64_t& d);
+
+
+
+#endif /* MSC__SCSI_h */
