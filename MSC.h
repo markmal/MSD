@@ -121,8 +121,8 @@ struct USB_MSC_CSW {
 
 
 
-//#define MSC_BLOCK_DATA_SZ 512
-#define MSC_BLOCK_DATA_SZ 64
+#define MSC_BLOCK_DATA_SZ 512
+//#define MSC_BLOCK_DATA_SZ 64
 //extern byte blockData[BLOCK_DATA_SZ];
 //extern String debug;
 

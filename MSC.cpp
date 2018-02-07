@@ -13,7 +13,7 @@
 #include "my_debug.h"
 //#include <USB/CDC.cpp>
 #include "SCSIDevice.h"
-
+#include "LcdConsole.h"
 
 //#if defined(USBCON)
 //byte blockData[MSC_BLOCK_DATA_SZ];
@@ -188,7 +188,7 @@ bool MSC_::setup(USBSetup& setup)
 }
 
 bool MSC_::reset(){
-	Serial.println("reset");
+	//Serial.println("reset");
 	// TODO actual reset
 	return true;
 }
@@ -220,6 +220,9 @@ void debugPrintRespose(const SCSI_STANDARD_INQUIRY_DATA *inc){
  * Data-In - Indicates a transfer of data IN from the device to the host.
  */
 uint32_t MSC_::receiveInBlock(){
+	lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
+	lcdConsole.refresh();
+
 			//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
 			uint16_t rlen = cbw.dCBWDataTransferLength;
 			uint16_t len = cbw.dCBWDataTransferLength;
@@ -237,6 +240,9 @@ uint32_t MSC_::receiveInBlock(){
 			csw.dCSWTag = cbw.dCBWTag;
 
 			scsiDev.processRequest(cbd, data, len);
+
+			lcdConsole.println("send len:"+ String(len));
+			lcdConsole.refresh();
 
 			//debugPrintRespose( (SCSI_STANDARD_INQUIRY_DATA*) response);
 			//debugPrintlnSX("HEX:",data, len);
@@ -274,7 +280,11 @@ uint32_t MSC_::receiveInBlock(){
  * Data-Out Indicates a transfer of data OUT from the host to the device.
  */
 uint32_t MSC_::receiveOutBlock(){ // receives block from USB
-	debug+="USB_CBW_DIRECTION_OUT: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+	//debug+="USB_CBW_DIRECTION_OUT: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+
+	lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
+	lcdConsole.refresh();
+
 	uint16_t rlen = cbw.dCBWDataTransferLength;
 	uint16_t len = cbw.dCBWDataTransferLength;
 	//uint8_t* response = NULL;
@@ -288,8 +298,9 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 
 	scsiDev.processRequest(cbd, data, len);
 
-	debug+="  USB_Send Response: ep:"+String(txEndpoint)+"\n";
-	USB_Send(txEndpoint, data, len);
+	//debug+="  USB_Send Response: ep:"+String(txEndpoint)+"\n";
+	if (len>0)
+		rlen = USBDevice.send(txEndpoint, data, len);
 	//debug+="  free\n";
 	//if (rlen) free(response);
 
@@ -300,16 +311,16 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 	csw.dCSWDataResidue = 0;
 	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
 
-	debug+="  USB_Send CSW\n";
-	USB_Send(txEndpoint, &csw, USB_CSW_SIZE);
-	debug+="  USB_Sent CSW\n";
+	//debug+="  USB_Send CSW\n";
+	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
+	//debug+="  USB_Sent CSW\n";
 }
 
 uint32_t MSC_::receiveBlock(){ // receives block from USB
-	debug += "MSC_::receiveBlock()";
+	//debug += "MSC_::receiveBlock()";
 	//Serial.print(debug); debug="";
 	uint32_t rxa = USBDevice.available(rxEndpoint);
-	debug += "  USBDevice.available rx:"+String(rxa)+"\n";
+	//debug += "  USBDevice.available rx:"+String(rxa)+"\n";
 	//Serial.print(debug); debug="";
 
 	if (rxa >= USB_CBW_SIZE) {

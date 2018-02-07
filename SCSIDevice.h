@@ -11,7 +11,7 @@
 #include <stdint.h>
 //#include "SD.h"
 //#include "utility/Sd2Card.h"
-#include <SPI.h>
+//#include <SPI.h>
 
 #include "SCSI.h"
 
