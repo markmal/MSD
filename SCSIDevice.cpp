@@ -17,15 +17,17 @@
 #include "SCSIDevice.h"
 
 SCSIDevice::SCSIDevice():
-	lastLBA(0), blockSize(SD_BLOCK_SIZE), sdCardErrorCode(0), sdCardErrorData(0){
+	lastLBA(0), LBA(0), blockSize(SD_BLOCK_SIZE), sdCardErrorCode(0), sdCardErrorData(0){
 /*	sdCard = new Sd2Card();
 	sdCard->init();
 	sdCardErrorCode = sdCard->errorCode();
 	sdCardErrorData = sdCard->errorData();
 	*/
-	memset(blockData,0,512);
-	memset(inquiryData.array, 0,sizeof(inquiryData));
-	memset(capacity10.array , 0,sizeof(capacity10));
+	maxTransferLength = MAX_TRANSFER_LENGTH;
+	transferData = (uint8_t*)malloc(MAX_TRANSFER_LENGTH);
+	memset(transferData, 0, MAX_TRANSFER_LENGTH);
+	memset(inquiryData.array, 0, sizeof(inquiryData));
+	memset(capacity10.array , 0, sizeof(capacity10));
 }
 
 SCSIDevice::~SCSIDevice() {
@@ -33,7 +35,7 @@ SCSIDevice::~SCSIDevice() {
 	//delete sdCard;
 }
 
-int SCSIDevice::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint8_t* &data, uint16_t& len) {
+int SCSIDevice::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint8_t* &data, uint32_t& len) {
 	lcdConsole.println("Inquiry:"+ String(len));
 	lcdConsole.refresh();
 	memset(&inquiryData, 0, sizeof(inquiryData));
@@ -55,7 +57,7 @@ int SCSIDevice::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint8_t* &data, uint16_t&
 	return len;
 }
 
-int SCSIDevice::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint8_t* &data, uint16_t& len) {
+int SCSIDevice::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint8_t* &data, uint32_t& len) {
 	//TODO Check if SD is ready
 	///if (!sdCard) return NO_MEDIA;
 	//if (!(sdCard->type() waitNotBusy(SD_INIT_TIMEOUT))) return MEDIA_BUSY;
@@ -64,7 +66,7 @@ int SCSIDevice::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint8_t* &d
 	return MEDIA_READY;
 }
 
-int SCSIDevice::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint8_t* &data, uint16_t& len) {
+int SCSIDevice::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint8_t* &data, uint32_t& len) {
 	lcdConsole.println("ModeSense:"+String(len));
 	lcdConsole.refresh();
 	if (cbd.PC == 0){ // current values
@@ -81,7 +83,7 @@ int SCSIDevice::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint8_t* &data, u
 	return 4;
 }
 
-int SCSIDevice::processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint8_t* &data, uint16_t& len){
+int SCSIDevice::processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint8_t* &data, uint32_t& len){
 	lcdConsole.println("MediumRemoval:"+String(len));
 	lcdConsole.refresh();
 	// if (sdCard in ) return 0
@@ -91,7 +93,7 @@ int SCSIDevice::processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd,
 	return 0;
 }
 
-int SCSIDevice::processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint8_t* &data, uint16_t& len) {
+int SCSIDevice::processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint8_t* &data, uint32_t& len) {
 	lcdConsole.println("ReadCapacity10:"+ String(len));
 	lcdConsole.refresh();
 	///uint32_t sz = sdCard->cardSize();
@@ -117,6 +119,7 @@ uint32_t toUint32(uint8_t a[4]){
 	return a[0]<<24 | a[1]<<16 | a[2]<<8 | a[3];
 }
 
+// This is first 512 block from a real SD card. Needed for FDisk and FAT. Remove after real SD card implementation
 uint8_t BLOCK0[512] = {
 		  0xfa, 0x33, 0xc0, 0x8e, 0xd0, 0xbc, 0x00, 0x7c, 0x8b, 0xf4, 0x50, 0x07,
 		  0x50, 0x1f, 0xfb, 0xfc, 0xbf, 0x00, 0x06, 0xb9, 0x00, 0x01, 0xf2, 0xa5,
@@ -163,30 +166,47 @@ uint8_t BLOCK0[512] = {
 		  0xc0, 0x00, 0x00, 0xc0, 0x2c, 0x00, 0x55, 0xaa
 };
 
+int SCSIDevice::readData(uint8_t* &data){
+	lcdConsole.println("readData:");
+	int cnt = txLBAcnt - LBAcnt;
+	if (cnt > maxTransferLBAcount) cnt = maxTransferLBAcount;
+	int rl = 0;
+	while ( cnt > 0 ) {
+		//sdCard->readBlock(LBA, transferData[rl]);
+		// spoof it
+		if (LBA==0){
+			memset(transferData, 0, maxTransferLength);
+			memcpy(transferData, BLOCK0, 512);
+		} else
+			for(int i=0; i<blockSize; i++) {
+				transferData[rl+i] = (i%16)+0x41;
+			}
+		cnt--;
+		LBAcnt++;
+		LBA++;
+		rl += blockSize;
+	}
+	data = transferData;
+	return rl;
+}
 
-int SCSIDevice::processRead10(SCSI_CBD_READ_10 &cbd, uint8_t* &data, uint16_t& len) {
 
-	uint32_t LBA = toUint32(cbd.LBA_a);
-	uint16_t txlen = toUint16(cbd.length_a);
+int SCSIDevice::processRead10(SCSI_CBD_READ_10 &cbd, uint8_t* &data, uint32_t& len) {
+
+	txLBA = toUint32(cbd.LBA_a);
+	txLBAcnt = toUint16(cbd.length_a);
+	txLen = txLBAcnt * blockSize;
+	LBA = txLBA;
+	LBAcnt = 0;
+
 	//debug+=" read LBA:"+String(LBA)+" txlen:"+String(txlen)+"\n";
-	lcdConsole.println("Read lba:"+String(LBA) +"ul:"+String(len)
-			+ "sl:"+String(txlen * blockSize));
-
+	//lcdConsole.println("Read lba:"+String(LBA) +"ul:"+String(len)
+		//	+ "sl:"+String(txLen * blockSize));
 
 	//if (LBA > lastLBA) error();
 	//if (cbd.length == 0) len=0;
-	//uint8_t r = 1; //sdCard->readBlock(cbd.LBA, blockData);
 
-	if (LBA==0){
-		memset(blockData, 0, len);
-		memcpy(blockData, BLOCK0, 512);
-	} else
-		for(int i=0; i< len; i++) {
-			blockData[i] = (i%16)+0x41;
-		}
-	data = blockData;
-	len = txlen * blockSize;
-	return len;
+	return txLen;
 
 	/*if (r) {
 		//data = blockData;
@@ -203,9 +223,9 @@ int SCSIDevice::processRead10(SCSI_CBD_READ_10 &cbd, uint8_t* &data, uint16_t& l
 	*/
 }
 
-int SCSIDevice::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint8_t* &data, uint16_t& len) {
+
+int SCSIDevice::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint8_t* &data, uint32_t& len) {
 	lcdConsole.println("Write10:"+ String(len));
-	lcdConsole.refresh();
 
 	/*
 	uint8_t r = sdCard->writeBlock(cbd.LBA, blockData);
@@ -226,7 +246,7 @@ int SCSIDevice::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint8_t* &data, uint16_t
 }
 
 
-int SCSIDevice::processRequest(SCSI_CBD &cbd, uint8_t* &data, uint16_t& len){
+int SCSIDevice::processRequest(SCSI_CBD &cbd, uint8_t* &data, uint32_t& len){
 
 	if (cbd.generic.opcode == SCSI_READ_10){
 		int r = processRead10(cbd.read10, data, len);

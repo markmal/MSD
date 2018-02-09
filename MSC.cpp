@@ -227,102 +227,95 @@ uint32_t MSC_::receiveInBlock(){
 	lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
 	lcdConsole.refresh();
 
-			//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
-			//uint16_t rlen = cbw.dCBWDataTransferLength;
-			uint16_t len = cbw.dCBWDataTransferLength;
+	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+	//uint16_t rlen = cbw.dCBWDataTransferLength;
+	uint32_t tfLen = cbw.dCBWDataTransferLength;
 
-			//uint8_t* response = NULL;
-			//if (rlen) response = (uint8_t*)malloc(rlen);
-			//debugPrintlnSX("  cbw.CBWCB:",cbw.CBWCB, cbw.bCBWCBLength);
+	//uint8_t* response = NULL;
+	//if (rlen) response = (uint8_t*)malloc(rlen);
+	//debugPrintlnSX("  cbw.CBWCB:",cbw.CBWCB, cbw.bCBWCBLength);
 
-			SCSI_CBD cbd;
-			memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
-			//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n";
+	SCSI_CBD cbd;
+	memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
+	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n";
 
-			USB_MSC_CSW csw;
-			csw.dCSWSignature = USB_CSW_SIGNATURE;
-			csw.dCSWTag = cbw.dCBWTag;
+	USB_MSC_CSW csw;
+	csw.dCSWSignature = USB_CSW_SIGNATURE;
+	csw.dCSWTag = cbw.dCBWTag;
 
-			scsiDev.processRequest(cbd, data, len);
+	int rlen = scsiDev.processRequest(cbd, data, tfLen);
+	uint32_t slen = 0;
+	while (rlen>0){
+		rlen = scsiDev.readData(data);
+		lcdConsole.println("send len:"+ String(rlen));
+		slen += USBDevice.send(txEndpoint, data, rlen);
+	}
+	//USBDevice.flush(txEndpoint);
 
-			lcdConsole.println("send len:"+ String(len));
-			lcdConsole.refresh();
+	/* For Data-In the device shall report in the dCSWDataResidue
+	 * the difference between the amount of data expected as stated
+	 * in the dCBWDataTransferLength and the actual amount of relevant
+	 * data sent by the device. */
+	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
+	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
 
-			//debugPrintRespose( (SCSI_STANDARD_INQUIRY_DATA*) response);
-			//debugPrintlnSX("HEX:",data, len);
-			//debug+="  USB_Send Response: ep:"+String(txEndpoint)+" len:"+String(len) + "\n";
-			//Serial.print(debug); debug="";
+	//debug+="  USB_Send CSW\n";
+	//Serial.print(debug); debug="";
+	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
+	//debug+="  USB_Sent CSW\n";
+	//Serial.print(debug); debug="";
+	USBDevice.flush(txEndpoint);
 
-			uint32_t rl=0;
-			rl = USBDevice.send(txEndpoint, data, len);
-
-			//USBDevice.flush(txEndpoint);
-			/*int tosend = len; int ll=32; int dp=0; //chunking does not help
-			while (tosend>0) {
-				if (tosend<32) ll=tosend;
-				rl = USBDevice.send(txEndpoint, data+dp, ll);
-				tosend -= rl; dp += rl;
-				//USBDevice.flush(txEndpoint);
-			}*/
-
-			/* For Data-In the device shall report in the dCSWDataResidue
-			 * the difference between the amount of data expected as stated
-			 * in the dCBWDataTransferLength and the actual amount of relevant
-			 * data sent by the device. */
-			csw.dCSWDataResidue = cbw.dCBWDataTransferLength - len;
-			csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
-
-			//debug+="  USB_Send CSW\n";
-			//Serial.print(debug); debug="";
-			USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
-			//debug+="  USB_Sent CSW\n";
-			//Serial.print(debug); debug="";
-			USBDevice.flush(txEndpoint);
-
-			return rl;
+	return slen;
 }
 
 /*
  * Data-Out Indicates a transfer of data OUT from the host to the device.
  */
 uint32_t MSC_::receiveOutBlock(){ // receives block from USB
-	//debug+="USB_CBW_DIRECTION_OUT: len:" + String(cbw.dCBWDataTransferLength)+"\n";
-
 	lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
 	lcdConsole.refresh();
 
-	uint16_t rlen = cbw.dCBWDataTransferLength;
-	uint16_t len = cbw.dCBWDataTransferLength;
+	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+	//uint16_t rlen = cbw.dCBWDataTransferLength;
+	uint32_t tfLen = cbw.dCBWDataTransferLength;
+
 	//uint8_t* response = NULL;
 	//if (rlen) response = (uint8_t*)malloc(rlen);
+	//debugPrintlnSX("  cbw.CBWCB:",cbw.CBWCB, cbw.bCBWCBLength);
 
 	SCSI_CBD cbd;
 	memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
+	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n";
 
-	csw.dCSWTag = cbw.dCBWTag;
+	USB_MSC_CSW csw;
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
+	csw.dCSWTag = cbw.dCBWTag;
 
-	if (len > SD_MAX_DATA) len = SD_MAX_DATA;
-	scsiDev.processRequest(cbd, data, len);
+	int rlen = scsiDev.processRequest(cbd, data, tfLen);
+	uint32_t slen = 0;
+	while (rlen>0){
+		rlen = scsiDev.readData(data);
+		lcdConsole.println("send len:"+ String(rlen));
+		slen += USBDevice.send(txEndpoint, data, rlen);
+	}
+	//USBDevice.flush(txEndpoint);
 
-	//debug+="  USB_Send Response: ep:"+String(txEndpoint)+"\n";
-	if (len>0)
-		rlen = USBDevice.send(txEndpoint, data, len);
-	//debug+="  free\n";
-	//if (rlen) free(response);
-
-	/* For Data-Out the device shall report in the dCSWDataResidue
+	/* For Data-In the device shall report in the dCSWDataResidue
 	 * the difference between the amount of data expected as stated
-	 * in the dCBWDataTransferLength, and the actual amount of data
-	 * processed by the device. */
-	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - rlen;
+	 * in the dCBWDataTransferLength and the actual amount of relevant
+	 * data sent by the device. */
+	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
 	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
 
 	//debug+="  USB_Send CSW\n";
+	//Serial.print(debug); debug="";
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
 	//debug+="  USB_Sent CSW\n";
-	return rlen;
+	//Serial.print(debug); debug="";
+	USBDevice.flush(txEndpoint);
 
+	return slen;
 }
 
 uint32_t MSC_::receiveBlock(){ // receives block from USB
