@@ -17,6 +17,7 @@
 
 #define SD_BLOCK_SIZE 512
 
+
 class SCSIDevice {
 public:
 	SCSIDevice();
@@ -42,7 +43,7 @@ private:
 	//Sd2Card* sdCard;
 	uint32_t lastLBA;
 	uint32_t blockSize;
-	uint8_t blockData[4096];
+	uint8_t blockData[];
 	uint8_t sdCardErrorCode;
 	uint8_t sdCardErrorData;
 };

@@ -52,9 +52,12 @@ int MSC_::getInterface(uint8_t* interfaceCount)
 	MSCDescriptor MSCInterface = {
 		D_INTERFACE(pluggedInterface, NUM_ENDPOINTS, USB_DEVICE_CLASS_STORAGE,
 				MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BULK_ONLY),
-		D_ENDPOINT(USB_ENDPOINT_OUT(MSC_ENDPOINT_OUT), USB_ENDPOINT_TYPE_BULK, MSC_BLOCK_DATA_SZ, 0),
-		D_ENDPOINT(USB_ENDPOINT_IN (MSC_ENDPOINT_IN),  USB_ENDPOINT_TYPE_BULK, MSC_BLOCK_DATA_SZ, 0)
+		D_ENDPOINT(USB_ENDPOINT_OUT(MSC_ENDPOINT_OUT),
+				USB_ENDPOINT_TYPE_BULK, MSC_BLOCK_DATA_SZ, 0),
+		D_ENDPOINT(USB_ENDPOINT_IN (MSC_ENDPOINT_IN),
+				USB_ENDPOINT_TYPE_BULK, MSC_BLOCK_DATA_SZ, 0)
 	};
+
 	rxEndpoint = MSC_ENDPOINT_OUT;
 	txEndpoint = MSC_ENDPOINT_IN;
 	return USB_SendControl(0, &MSCInterface, sizeof(MSCInterface));
@@ -153,9 +156,9 @@ bool MSC_::setup(USBSetup& setup)
 
 	uint8_t request = setup.bRequest;
 	uint8_t requestType = setup.bmRequestType;
-	uint16_t length = setup.wLength;
-	uint16_t value = setup.wValueL + (setup.wValueH << 8);
-	uint16_t index = setup.wIndex;
+	//uint16_t length = setup.wLength;
+	//uint16_t value = setup.wValueL + (setup.wValueH << 8);
+	//uint16_t index = setup.wIndex;
 
 	if (requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE)
 	{
@@ -210,11 +213,12 @@ void debugCBW(USB_MSC_CBW &cbw){
 	debug += "\n";
 }
 
-
+/*
 void debugPrintRespose(const SCSI_STANDARD_INQUIRY_DATA *inc){
 	debugPrintlnSC("    inc.t10_vendor_id:", (char*)inc->inquiry.t10_vendor_id, 8);
 	debugPrintlnSC("    inquiryData.inquiry.product_id:", (char*)inc->inquiry.product_id, 16);
 }
+*/
 
 /*
  * Data-In - Indicates a transfer of data IN from the device to the host.
@@ -224,7 +228,7 @@ uint32_t MSC_::receiveInBlock(){
 	lcdConsole.refresh();
 
 			//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
-			uint16_t rlen = cbw.dCBWDataTransferLength;
+			//uint16_t rlen = cbw.dCBWDataTransferLength;
 			uint16_t len = cbw.dCBWDataTransferLength;
 
 			//uint8_t* response = NULL;
@@ -274,6 +278,8 @@ uint32_t MSC_::receiveInBlock(){
 			//debug+="  USB_Sent CSW\n";
 			//Serial.print(debug); debug="";
 			USBDevice.flush(txEndpoint);
+
+			return rl;
 }
 
 /*
@@ -296,6 +302,7 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 	csw.dCSWTag = cbw.dCBWTag;
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
 
+	if (len > SD_MAX_DATA) len = SD_MAX_DATA;
 	scsiDev.processRequest(cbd, data, len);
 
 	//debug+="  USB_Send Response: ep:"+String(txEndpoint)+"\n";
@@ -308,12 +315,14 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 	 * the difference between the amount of data expected as stated
 	 * in the dCBWDataTransferLength, and the actual amount of data
 	 * processed by the device. */
-	csw.dCSWDataResidue = 0;
+	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - rlen;
 	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
 
 	//debug+="  USB_Send CSW\n";
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
 	//debug+="  USB_Sent CSW\n";
+	return rlen;
+
 }
 
 uint32_t MSC_::receiveBlock(){ // receives block from USB
