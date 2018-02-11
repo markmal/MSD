@@ -11,7 +11,6 @@
 #include "SCSI.h"
 #include <USB/PluggableUSB.h>
 #include "my_debug.h"
-//#include <USB/CDC.cpp>
 #include "SCSIDevice.h"
 #include "LcdConsole.h"
 
@@ -42,6 +41,10 @@ MSC_::MSC_() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFACE, epType)
 }
 
 MSC_::~MSC_(void){}
+
+int MSC_::begin(){
+	return scsiDev.begin();
+}
 
 int MSC_::getInterface(uint8_t* interfaceCount)
 {
@@ -224,8 +227,7 @@ void debugPrintRespose(const SCSI_STANDARD_INQUIRY_DATA *inc){
  * Data-In - Indicates a transfer of data IN from the device to the host.
  */
 uint32_t MSC_::receiveInBlock(){
-	lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
-	lcdConsole.refresh();
+	//lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
 
 	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
 	//uint16_t rlen = cbw.dCBWDataTransferLength;
@@ -243,12 +245,22 @@ uint32_t MSC_::receiveInBlock(){
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
 	csw.dCSWTag = cbw.dCBWTag;
 
-	int rlen = scsiDev.processRequest(cbd, data, tfLen);
-	uint32_t slen = 0;
-	while (rlen>0){
-		rlen = scsiDev.readData(data);
-		lcdConsole.println("send len:"+ String(rlen));
-		slen += USBDevice.send(txEndpoint, data, rlen);
+	int txlen = scsiDev.processRequest(cbd, tfLen);
+	//lcdConsole.println("  txlen:"+ String(txlen));
+	//SerialUSB.println("  txlen:"+ String(txlen));
+	if (txlen < 0) return -1; // error
+
+	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
+	while (slen < txlen && rl>0){
+		rl = scsiDev.readData(data);
+		//lcdConsole.println("  read rl:"+ String(rl));
+		if (rl < 0) return -1; // error
+		rlen += rl;
+		//lcdConsole.println("  send rl:"+ String(rl));
+		sl = USBDevice.send(txEndpoint, data, rl);
+		//lcdConsole.println("  sent sl:"+ String(sl));
+		slen += sl;
+		//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
 	}
 	//USBDevice.flush(txEndpoint);
 
@@ -273,8 +285,7 @@ uint32_t MSC_::receiveInBlock(){
  * Data-Out Indicates a transfer of data OUT from the host to the device.
  */
 uint32_t MSC_::receiveOutBlock(){ // receives block from USB
-	lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
-	lcdConsole.refresh();
+	//lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
 
 	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
 	//uint16_t rlen = cbw.dCBWDataTransferLength;
@@ -292,12 +303,25 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
 	csw.dCSWTag = cbw.dCBWTag;
 
-	int rlen = scsiDev.processRequest(cbd, data, tfLen);
-	uint32_t slen = 0;
-	while (rlen>0){
-		rlen = scsiDev.readData(data);
-		lcdConsole.println("send len:"+ String(rlen));
-		slen += USBDevice.send(txEndpoint, data, rlen);
+	int txlen = scsiDev.processRequest(cbd, tfLen);
+	//lcdConsole.println("  txlen:"+ String(txlen));
+	//SerialUSB.println("  txlen:"+ String(txlen));
+	if (txlen < 0) return -1; // error
+
+	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
+	while (slen < txlen && rl>0){
+		rl = scsiDev.readData(data);
+		//lcdConsole.println("  read rl:"+ String(rl));
+		if (rl < 0) {
+			lcdConsole.println("  ReadDataError:"+ String(rl));
+			return -1; // error
+		}
+		rlen += rl;
+		//lcdConsole.println("  send rl:"+ String(rl));
+		sl = USBDevice.send(txEndpoint, data, rl);
+		//lcdConsole.println("  sent sl:"+ String(sl));
+		slen += sl;
+		//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
 	}
 	//USBDevice.flush(txEndpoint);
 

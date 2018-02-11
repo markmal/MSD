@@ -136,10 +136,10 @@ class MSC_: public PluggableUSBModule {
 public:
 	MSC_();
 	virtual ~MSC_();
+	int begin();
 	uint32_t receiveBlock(); // receives block from USB
 	//uint32_t sendBlock(); // sends block to USB
 	//bool begin();
-
 protected:
   // Implementation of the PluggableUSBModule
   int getInterface(uint8_t* interfaceCount);
