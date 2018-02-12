@@ -10,9 +10,9 @@
 
 #include <stdint.h>
 #include <Arduino.h>
+#include <SCSIDeviceClass.h>
 #include <USB/PluggableUSB.h>
 #include "SCSI.h"
-#include "SCSIDevice.h"
 
 #define EPTYPE_DESCRIPTOR_SIZE		uint32_t
 #define USB_SendControl				USBDevice.sendControl
@@ -110,6 +110,7 @@ struct USB_MSC_CSW {
 	le32_t dCSWTag;	//!< Same as dCBWTag
 	le32_t dCSWDataResidue;	//!< Number of bytes not transfered
 	uint8_t bCSWStatus;	//!< Status code
+
 };
 
 #define  USB_CSW_SIZE          		13	//!< CSW size
@@ -131,13 +132,16 @@ struct USB_MSC_CSW {
  */
 
 
-class MSC_: public PluggableUSBModule {
+class MSCDeviceClass: public PluggableUSBModule {
 
 public:
-	MSC_();
-	virtual ~MSC_();
+	MSCDeviceClass();
+	virtual ~MSCDeviceClass();
 	int begin();
-	uint32_t receiveBlock(); // receives block from USB
+	String getSDCardError();
+	String getError();
+	uint32_t receiveRequest(); // receives block from USB
+	String getSCSIRequestInfo();
 	//uint32_t sendBlock(); // sends block to USB
 	//bool begin();
 protected:
@@ -148,13 +152,13 @@ protected:
   uint8_t getShortName(char* name);
   bool reset();
 
-  uint32_t receiveInBlock(); // receives IN block from USB
-  uint32_t receiveOutBlock(); // receives OUT block from USB
+  uint32_t receiveInRequest(); // receives IN block from USB
+  uint32_t receiveOutRequest(); // receives OUT block from USB
 
 private:
   USB_MSC_CBW cbw;
   USB_MSC_CSW csw;
-  SCSIDevice scsiDev;
+  SCSIDeviceClass scsiDev;
   uint32_t txEndpoint;
   uint32_t rxEndpoint;
   EPTYPE_DESCRIPTOR_SIZE epType[NUM_ENDPOINTS];   ///< Container that defines the two bulk MIDI IN/OUT endpoints types

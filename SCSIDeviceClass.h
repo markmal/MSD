@@ -19,12 +19,12 @@
 #define MAX_TRANSFER_LENGTH 4096
 #define SCSIDEVICE_DATASOURCE_INTERNAL 0
 #define SCSIDEVICE_DATASOURCE_SDCARD 1
+#define ERROR -1
 
-
-class SCSIDevice {
+class SCSIDeviceClass {
 public:
-	SCSIDevice();
-	virtual ~SCSIDevice();
+	SCSIDeviceClass();
+	virtual ~SCSIDeviceClass();
 	int begin();
 
 	int initSD();
@@ -37,20 +37,28 @@ public:
 
 	int processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
 	int processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len);
+	int processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len);
 	int processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len);
 	int processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint32_t len);
 	int processRead10(SCSI_CBD_READ_10  &cbd, uint32_t len);
 	int processWrite10(SCSI_CBD_WRITE_10 &cbd, uint32_t len);
 	int processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len);
+	int processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len);
 
 	uint8_t  SDCardType();
 	uint64_t SDCardSize();
 	String   SDCardProductName();
+	uint8_t  SDCardErrorCode();
+	uint8_t  SDCardErrorData();
+	String   getSDCardError();
+	String   getSCSIError();
+	String requestInfo;
 
 private:
 	SCSI_STANDARD_INQUIRY_DATA inquiryData;
 	SCSI_CAPACITY_DATA_10 capacity10;
-	SCSI_CBD_MODE_SENSE_DATA_6 modesenseData6;
+	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
+	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
 
 	uint32_t lastLBA;
 	uint32_t LBA;
@@ -72,6 +80,16 @@ private:
 	uint8_t dataSource;
 	uint8_t sdCardErrorCode;
 	uint8_t sdCardErrorData;
+
+	uint8_t senseKey;
+	uint8_t senseInformation[4];
+	uint8_t additionalSenseCode;
+	uint8_t additionalSenseCodeQualifier;
+	bool incorrectLengthIndicator;
+
+public:
+	uint8_t scsiStatus;
+
 };
 
 #endif /* SCSIDevice_h */

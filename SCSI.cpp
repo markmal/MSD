@@ -18,7 +18,7 @@ union LSB16{
 void msb2lsb(uint16_t& s, uint16_t& d){
 	LSB16& ss = (LSB16&)s;
 	LSB16& dd = (LSB16&)d;
-	dd.array[1] = ss.array[1];
+	dd.array[1] = ss.array[0];
 	dd.array[0] = ss.array[1];
 }
 

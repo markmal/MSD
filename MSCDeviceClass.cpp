@@ -7,11 +7,11 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include "MSC.h"
+#include <MSCDeviceClass.h>
+#include <SCSIDeviceClass.h>
 #include "SCSI.h"
 #include <USB/PluggableUSB.h>
 #include "my_debug.h"
-#include "SCSIDevice.h"
 #include "LcdConsole.h"
 
 //#if defined(USBCON)
@@ -26,7 +26,7 @@ void blink(uint ms){
 }
 
 
-MSC_::MSC_() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFACE, epType)
+MSCDeviceClass::MSCDeviceClass() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFACE, epType)
 				   //descriptorSize(0),
                    //protocol(MSC_REPORT_PROTOCOL),
 				   //idle(0)
@@ -40,13 +40,21 @@ MSC_::MSC_() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFACE, epType)
 	PluggableUSB().plug(this);
 }
 
-MSC_::~MSC_(void){}
+MSCDeviceClass::~MSCDeviceClass(void){}
 
-int MSC_::begin(){
+int MSCDeviceClass::begin(){
 	return scsiDev.begin();
 }
 
-int MSC_::getInterface(uint8_t* interfaceCount)
+String MSCDeviceClass::getSDCardError(){
+	return scsiDev.getSDCardError();
+}
+
+String MSCDeviceClass::getError(){
+	return "SD:"+scsiDev.getSDCardError() + "\nSCSI:"+scsiDev.getSCSIError();
+}
+
+int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 {
 	debug += "MSC_::getInterface\n";
 
@@ -66,7 +74,7 @@ int MSC_::getInterface(uint8_t* interfaceCount)
 	return USB_SendControl(0, &MSCInterface, sizeof(MSCInterface));
 }
 
-int MSC_::getDescriptor(USBSetup& setup)
+int MSCDeviceClass::getDescriptor(USBSetup& setup)
 {
 	debug += "MSC_::getDescriptor\n";
 	debug += " setup.bRequest:"+String(setup.bRequest)+"\n";
@@ -110,7 +118,7 @@ int MSC_::getDescriptor(USBSetup& setup)
 	return total;
 }
 
-uint8_t MSC_::getShortName(char *name)
+uint8_t MSCDeviceClass::getShortName(char *name)
 {
 	debug += "MSC_::getShortName\n";
 	memcpy(name, "CDC,MSC", 7);
@@ -147,7 +155,7 @@ int MSC_::SendReport(uint8_t id, const void* data, int len)
 uint8_t maxlun = 0;
 
 // it is required for MSC, host driver needs to set LUN etc...
-bool MSC_::setup(USBSetup& setup)
+bool MSCDeviceClass::setup(USBSetup& setup)
 {
 	debug += "MSC_::setup\n";
 
@@ -193,7 +201,7 @@ bool MSC_::setup(USBSetup& setup)
 	return false;
 }
 
-bool MSC_::reset(){
+bool MSCDeviceClass::reset(){
 	//Serial.println("reset");
 	// TODO actual reset
 	return true;
@@ -223,10 +231,14 @@ void debugPrintRespose(const SCSI_STANDARD_INQUIRY_DATA *inc){
 }
 */
 
+String MSCDeviceClass::getSCSIRequestInfo(){
+	return scsiDev.requestInfo;
+}
+
 /*
  * Data-In - Indicates a transfer of data IN from the device to the host.
  */
-uint32_t MSC_::receiveInBlock(){
+uint32_t MSCDeviceClass::receiveInRequest(){
 	//lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
 
 	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
@@ -244,32 +256,44 @@ uint32_t MSC_::receiveInBlock(){
 	USB_MSC_CSW csw;
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
 	csw.dCSWTag = cbw.dCBWTag;
+	csw.dCSWDataResidue = cbw.dCBWDataTransferLength;
 
 	int txlen = scsiDev.processRequest(cbd, tfLen);
+
 	//lcdConsole.println("  txlen:"+ String(txlen));
-	//SerialUSB.println("  txlen:"+ String(txlen));
-	if (txlen < 0) return -1; // error
-
+	SerialUSB.println("  txlen:"+ String(txlen));
+	// negative txlen means ERROR
 	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
-	while (slen < txlen && rl>0){
-		rl = scsiDev.readData(data);
-		//lcdConsole.println("  read rl:"+ String(rl));
-		if (rl < 0) return -1; // error
-		rlen += rl;
-		//lcdConsole.println("  send rl:"+ String(rl));
-		sl = USBDevice.send(txEndpoint, data, rl);
-		//lcdConsole.println("  sent sl:"+ String(sl));
-		slen += sl;
-		//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
-	}
-	//USBDevice.flush(txEndpoint);
 
-	/* For Data-In the device shall report in the dCSWDataResidue
-	 * the difference between the amount of data expected as stated
-	 * in the dCBWDataTransferLength and the actual amount of relevant
-	 * data sent by the device. */
-	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
-	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
+	if (txlen > 0) {
+		while (slen < txlen && rl>0){
+			rl = scsiDev.readData(data);
+			//lcdConsole.println("  read rl:"+ String(rl));
+			SerialUSB.println("  read rl:"+ String(rl));
+			if (rl < 0) return -1; // error
+			rlen += rl;
+			SerialUSB.println("  send rl:"+ String(rl));
+			sl = USBDevice.send(txEndpoint, data, rl);
+			SerialUSB.println("  sent sl:"+ String(sl));
+			slen += sl;
+			SerialUSB.println("  slen:"+ String(slen));
+			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
+		}
+		//USBDevice.flush(txEndpoint);
+
+		/* For Data-In the device shall report in the dCSWDataResidue
+		 * the difference between the amount of data expected as stated
+		 * in the dCBWDataTransferLength and the actual amount of relevant
+		 * data sent by the device. */
+		csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
+	}
+
+	if (scsiDev.scsiStatus == GOOD) {
+		csw.bCSWStatus = USB_CSW_STATUS_PASS;
+	}else{
+		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
+
+	}
 
 	//debug+="  USB_Send CSW\n";
 	//Serial.print(debug); debug="";
@@ -284,7 +308,7 @@ uint32_t MSC_::receiveInBlock(){
 /*
  * Data-Out Indicates a transfer of data OUT from the host to the device.
  */
-uint32_t MSC_::receiveOutBlock(){ // receives block from USB
+uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	//lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
 
 	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
@@ -342,7 +366,7 @@ uint32_t MSC_::receiveOutBlock(){ // receives block from USB
 	return slen;
 }
 
-uint32_t MSC_::receiveBlock(){ // receives block from USB
+uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 	//debug += "MSC_::receiveBlock()";
 	//Serial.print(debug); debug="";
 	uint32_t rxa = USBDevice.available(rxEndpoint);
@@ -355,16 +379,17 @@ uint32_t MSC_::receiveBlock(){ // receives block from USB
 		if (r==31 && cbw.dCBWSignature == USB_CBW_SIGNATURE){
 			//debugCBW(cbw);
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_IN){ // from the device to the host.
-				receiveInBlock();
+				receiveInRequest();
 			} else
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_OUT){ // from the host to the device.
-				receiveOutBlock();
+				receiveOutRequest();
 			}
 		}
 		return r;
 	}
 	else {
 		debug += "\n";
+		scsiDev.requestInfo="";
 		return 0;
 	}
 }

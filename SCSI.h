@@ -21,7 +21,7 @@
 #define SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL	0x1E
 #define SCSI_READ_CAPACITY_10 				0x25
 #define SCSI_READ_CAPACITY_16 				0x9E // really ?
-//#define SCSI_READ_FORMAT_CAPACITY 			0x23 // undocumented
+#define SCSI_READ_FORMAT_CAPACITIES			0x23 // MMC2, requested by Windows
 #define SCSI_READ_10 						0x28
 #define SCSI_RECEIVE_DIAGNOSTIC_RESULTS		0x1C // when ENCSERV=1 ???
 #define SCSI_REPORT LUNS					0xA0
@@ -44,7 +44,7 @@ struct SCSI_CBD_INQUIRY {
 	  uint8_t	opcode; //
 	  uint8_t	EVPD:1, CMDDT:1, reserv:6;
 	  uint8_t	pgcode;
-	  uint16_t	length;
+	  uint16_t	allocation_length;
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
@@ -58,30 +58,22 @@ struct SCSI_CBD_INQUIRY {
 
 #define SCSI_SPC2	0x04 // The device complies to ANSI INCITS 351-2001 (SPC-2)
 
-union SCSI_STANDARD_INQUIRY_DATA{
-	struct INQUIRY {
-	uint8_t peripheral_device_type:5, peripheral_qualifier:3;
-	uint8_t reserv1:7, RMB:1; // = INQUIRY_RMB_REMOVABLE; // RMB(bit 7), resrved(0-6)
-	uint8_t version; //=0;
-	//uint8_t ACA_flags; //=0; // Obsolete(7-6), NORMACA(5), HISUP(4), Response Data Format(0-3)
-	uint8_t response_data_format:4, HISUP:1, NORMACA:1, obsolete1:2;
-	uint8_t additional_length; // N-4
+struct SCSI_STANDARD_INQUIRY_DATA{
+		uint8_t peripheral_device_type:5, peripheral_qualifier:3;
+		uint8_t reserv1:7, RMB:1; // = INQUIRY_RMB_REMOVABLE; // RMB(bit 7), resrved(0-6)
+		uint8_t version; //=0;
+		uint8_t response_data_format:4, HISUP:1, NORMACA:1, obsolete1:2;
+		uint8_t additional_length; // N-4
+		uint8_t protect:1, reserv2:2, b3PC:1, TPGS:2, ACC:1, SCCS:1;
+		uint8_t adr16:1, obsolete2:2, MCHNGR:1, MULTIP:1, VS:1, ENSERV:1, BQUE:1;
+		uint8_t VS2:1, CMDQUE:1, obsolete3:1, linked:1, SYNC:1, WBUS16:1, obsolete4:2;
 
-	//uint8_t SCSI_flags; //=0; // SCCS(7) ACCS(6) TPGS(5-4) 3PC(3) resrved(1-2) PROTECT(0)
-	uint8_t protect:1, reserv2:2, b3PC:1, TPGS:2, ACC:1, SCCS:1;
-	//uint8_t BQue_flags; //=0; // BQUE(7) ENSERV(6) VS(5) MULTIP(4) MCHNGR(3) Obsolete(1-2) ADDR16(0)
-	uint8_t adr16:1, obsolete2:2, MCHNGR:1, MULTIP:1, VS:1, ENSERV:1, BQUE:1;
-	//uint8_t RelAdr_flags; //=0; // Obsolete(7-6) WUSB16(5) SYNC(4) LINKED(3) Obsolete(2) CMDQUE(1) VS(0)
-	uint8_t VS2:1, CMDQUE:1, obsolete3:1, linked:1, SYNC:1, WBUS16:1, obsolete4:2;
-
-	uint8_t t10_vendor_id[8]; //={'M','M','7',' ',' ',' ',' ',' '};
-	uint8_t product_id[16]; //={'S','V','M','L',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '};
-	uint8_t product_revision_level[4]; //={'0','0','0','1'};
-	uint8_t drive_serial_number[8]; //={'0','0','0','1','0','0','0','1'};
-	uint8_t vendor_unique[12]; //={'0','0','0','1','0','0','0','1'};
-	uint8_t IUS:1, QAS:1, clocking:2, reserv3:4;
-	} inquiry;
-	uint8_t array[36];
+		uint8_t t10_vendor_id[8]; //={'M','M','7',' ',' ',' ',' ',' '};
+		uint8_t product_id[16]; //={'S','V','M','L',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '};
+		uint8_t product_revision_level[4]; //={'0','0','0','1'};
+		uint8_t drive_serial_number[8]; //={'0','0','0','1','0','0','0','1'};
+		uint8_t vendor_unique[12]; //={'0','0','0','1','0','0','0','1'};
+		uint8_t IUS:1, QAS:1, clocking:2, reserv3:4;
 };
 extern SCSI_STANDARD_INQUIRY_DATA standardInquiry;
 
@@ -113,12 +105,9 @@ A PMI bit set to one specifies that the device server return information on the 
 the LOGICAL BLOCK ADDRESS field before a substantial vendor-specific delay in data transfer may be encountered.
  */
 
-union SCSI_CAPACITY_DATA_10 {
-	struct FIELDS {
-		  uint32_t	lastLBA;
-		  uint32_t	block_sz; // in bytes
-	} fields;
-	uint8_t array[8];
+struct SCSI_CAPACITY_DATA_10 {
+	  uint32_t	lastLBA;
+	  uint32_t	block_sz; // in bytes
 };
 
 struct SCSI_CBD_READ_CAPACITY_16 {
@@ -130,23 +119,20 @@ struct SCSI_CBD_READ_CAPACITY_16 {
 	  SCSI_CDB_CONTROL   control;
 };
 
-union SCSI_CAPACITY_DATA_16 {
-	struct FIELDS {
-		  uint64_t	lastLBA;
-		  uint32_t	block_sz; // in bytes
-		  uint8_t PROT_EN:1, P_TYPE:3, reserv1:4;
-		  uint8_t reserv2[19];
-	} fields;
-	uint8_t array[32];
+struct SCSI_CAPACITY_DATA_16 {
+	  uint64_t	lastLBA;
+	  uint32_t	block_sz; // in bytes
+	  uint8_t PROT_EN:1, P_TYPE:3, reserv1:4;
+	  uint8_t reserv2[19];
 };
 
 
 struct SCSI_CBD_READ_10 {
 	  uint8_t	opcode; // 0x28
 	  uint8_t	obsolete:1, FUA_NV:1, reserv1:1, FUA:1, DPO:1, RDPROTECT:3;
-	  uint8_t	LBA_a[4];
+	  uint32_t	LBA;
 	  uint8_t	GROUP_NO:5, reserv2:3;
-	  uint8_t	length_a[2];
+	  uint16_t	transfer_length;
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[6];
 };
@@ -156,7 +142,7 @@ struct SCSI_CBD_WRITE_10 {
 	  uint8_t	obsolete:1, FUA_NV:1, reserv1:1, FUA:1, DPO:1, RDPROTECT:3;
 	  uint32_t	LBA;
 	  uint8_t	GROUP_NO:5, reserv2:3;
-	  uint16_t	length;
+	  uint16_t	transfer_length;
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[6];
 };
@@ -165,7 +151,7 @@ struct SCSI_CBD_REQUEST_SENSE {
 	  uint8_t	opcode; // 0x3
 	  uint8_t	desc:1, reserv1:7;
 	  uint8_t	reserv2[2];
-	  uint8_t	length;
+	  uint8_t	allocation_length;
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
@@ -194,21 +180,17 @@ struct SCSI_CBD_MODE_SENSE_6 {
 	  uint8_t   rest[10];
 };
 
-union SCSI_CBD_MODE_SENSE_DATA_6 {
-	struct FIELDS {
+struct SCSI_CBD_MODE_SENSE_DATA_6 {
   	  uint8_t	mode_data_length;
 	  uint8_t	medium_type;
 	  uint8_t	dev_specific_param;
 	  uint8_t	block_descr_length;
-	} fields;
-	uint8_t array[4];
 };
 
 
 struct SCSI_CBD_TEST_UNIT_READY {
 	  uint8_t	opcode; // 0x00
 	  uint8_t	reserv[4];
-	  uint8_t	length; //alloc lenght or "Prevent Allow Flag" one bit 0 for Allow Media Removal opcode
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
@@ -241,6 +223,29 @@ struct SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL {
 	  uint8_t   rest[10];
 };
 
+struct SCSI_CBD_READ_FORMAT_CAPACITIES {
+	  uint8_t	opcode; // 0x23
+	  uint8_t	reserv1[6];
+	  uint16_t	allocation_length;
+	  SCSI_CDB_CONTROL   control;
+	  uint8_t   rest[6];
+};
+
+struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
+	struct CAPACITY_LIST_HEADER {
+		uint8_t reserv1;
+		uint8_t reserv2;
+		uint8_t reserv3;
+		uint8_t capacity_list_length;
+	} capacity_list_header;
+
+	struct CURRENT_CAPACITY_DESCRIPTOR {
+		uint32_t numer_of_blocks;
+		uint8_t descritpor_type:2, reserv1:6;
+		uint8_t block_length[3];
+	} current_capacity_descritpor;
+
+};
 
 union SCSI_CBD {
 	SCSI_CBD_GENERIC generic;
@@ -255,6 +260,7 @@ union SCSI_CBD {
 	SCSI_CBD_TEST_UNIT_READY unit_ready;
 	SCSI_CBD_START_STOP start_stop;
 	SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL medium_removal;
+	SCSI_CBD_READ_FORMAT_CAPACITIES  request_read_format_capacities;
 	uint8_t array[16];
 };
 
@@ -265,6 +271,57 @@ union SCSI_CBD {
 #define ERROR_NO_MEDIA				-3
 #define ERROR_MEDIA_BUSY			-4
 
+// for response sense
+#define CURRENT_ERRORS 		0x70
+#define DEFERRED_ERRORS		0x71
+
+// from linux scsi.h
+// Status codes
+#define GOOD                 0x00
+#define CHECK_CONDITION      0x01
+#define CONDITION_GOOD       0x02
+#define BUSY                 0x04
+#define INTERMEDIATE_GOOD    0x08
+#define INTERMEDIATE_C_GOOD  0x0a
+#define RESERVATION_CONFLICT 0x0c
+#define COMMAND_TERMINATED   0x11
+#define QUEUE_FULL           0x14
+
+// Sense keys
+#define NO_SENSE            0x00
+#define RECOVERED_ERROR     0x01
+#define NOT_READY           0x02
+#define MEDIUM_ERROR        0x03
+#define HARDWARE_ERROR      0x04
+#define ILLEGAL_REQUEST     0x05
+#define UNIT_ATTENTION      0x06
+#define DATA_PROTECT        0x07
+#define BLANK_CHECK         0x08
+#define COPY_ABORTED        0x0a
+#define ABORTED_COMMAND     0x0b
+#define VOLUME_OVERFLOW     0x0d
+#define MISCOMPARE          0x0e
+
+
+/*
+// ADDITIONAL_SENSE_CODES
+#define SCSI_ASC_LOGICAL_UNIT_NOT_SUPPORTED
+#define SCSI_ASC_LOGICAL_UNIT_DOES_NOT_RESPOND_TO_SELECTION
+#define SCSI_ASC_MEDIUM_NOT_PRESENT
+#define SCSI_ASC_LOGICAL_UNIT_NOT_READY_CAUSE_NOT_REPORTABLE
+#define SCSI_ASC_LOGICAL_UNIT_IS_IN_PROCESS_OF_BECOMING_READY
+#define SCSI_ASC_LOGICAL_UNIT_NOT_READY_INITIALIZING_COMMAND_REQUIRED
+#define SCSI_ASC_LOGICAL_UNIT_NOT_READY_MANUAL_INTERVENTION_REQUIRED
+#define SCSI_ASC_LOGICAL_UNIT_NOT_READY_FORMAT_IN_PROGRESS
+*/
+#define NO_ASC 0x00
+#define INVALID_COMMAND_OPERATION_CODE 0x20
+#define LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE 0x21
+#define NOT_READY_TO_READY_CHANGE_MEDIUM_MAY_HAVE_CHANGED 0x28
+
+// ASCQ
+#define NO_ASCQ 0x00
+#define READ_BOUNDARY_VIOLATION 			0x7
 
 /*
 uint16_t msb2lsb(uint16_t v);
@@ -272,8 +329,22 @@ uint32_t msb2lsb(uint32_t v);
 uint64_t msb2lsb(uint64_t v);
 */
 
+/*
+ * converts Most significant bytes to Least significant bytes. And vice versa,
+ * s.b0 -> d.b1, s.b1 -> d.b0
+ * msb2lsb( source, dest );
+ */
 void msb2lsb(uint16_t& s, uint16_t& d);
+/*
+ * converts Most significant bytes to Least significant bytes. And vice versa,
+ * s.b0 -> d.b3, s.b1 -> d.b2, s.b2 -> d.b1, s.b3 -> d.b0
+ * msb2lsb( source, dest );
+ */
 void msb2lsb(uint32_t& s, uint32_t& d);
+/*
+ * converts Most significant bytes to Least significant bytes. And vice versa,
+ * msb2lsb( source, dest );
+ */
 void msb2lsb(uint64_t& s, uint64_t& d);
 
 

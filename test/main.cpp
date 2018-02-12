@@ -6,8 +6,8 @@
  */
 
 #include <Arduino.h>
+#include <MSCDeviceClass.h>
 #include <USB/USBAPI.h>
-#include "MSC.h"
 #include "my_debug.h"
 
 void blink2(uint ms){
@@ -16,7 +16,7 @@ void blink2(uint ms){
       digitalWrite(LED_BUILTIN, LOW);
 }
 
-MSC_ MSC;
+MSCDeviceClass MSC;
 
 uint8_t AAA[4096];
 
@@ -40,7 +40,7 @@ void loop() {
   uint32_t i=0;
   do {
 	blink2(50);
-    i = MSC.receiveBlock();
+    i = MSC.receiveRequest();
     if (i != 0) {
       //Serial.println("Received: ");
     }
