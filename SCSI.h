@@ -55,7 +55,6 @@ struct SCSI_CBD_INQUIRY {
 //PERIPHERAL DEVICE TYPE
 #define SCSI_SBC2	0x00 // Direct access block device (e.g., magnetic disk)
 #define SCSI_RBC	0x0E // Simplified direct-access device (e.g., magnetic disk) -- Windows does not support it
-
 #define SCSI_SPC2	0x04 // The device complies to ANSI INCITS 351-2001 (SPC-2)
 
 struct SCSI_STANDARD_INQUIRY_DATA{
@@ -71,9 +70,13 @@ struct SCSI_STANDARD_INQUIRY_DATA{
 		uint8_t t10_vendor_id[8]; //={'M','M','7',' ',' ',' ',' ',' '};
 		uint8_t product_id[16]; //={'S','V','M','L',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '};
 		uint8_t product_revision_level[4]; //={'0','0','0','1'};
+		// 36 bytes
+
 		uint8_t drive_serial_number[8]; //={'0','0','0','1','0','0','0','1'};
 		uint8_t vendor_unique[12]; //={'0','0','0','1','0','0','0','1'};
 		uint8_t IUS:1, QAS:1, clocking:2, reserv3:4;
+
+		uint8_t alignTo60[3];
 };
 extern SCSI_STANDARD_INQUIRY_DATA standardInquiry;
 
@@ -91,7 +94,7 @@ struct SCSI_CBD_READ_CAPACITY_10 {
 	  uint8_t	reserv2[2];
 	  uint8_t	PMI:1, reserv3:7;
 	  SCSI_CDB_CONTROL   control;
-	  uint8_t   rest[7];
+	  uint8_t   rest[6];
 };
 /*
  * The LOGICAL BLOCK ADDRESS field shall be set to zero if the PMI bit is set to zero. If the PMI bit is set to zero and the
@@ -244,7 +247,6 @@ struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
 		uint8_t descritpor_type:2, reserv1:6;
 		uint8_t block_length[3];
 	} current_capacity_descritpor;
-
 };
 
 union SCSI_CBD {
