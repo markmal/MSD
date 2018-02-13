@@ -19,7 +19,11 @@
 #define MAX_TRANSFER_LENGTH 4096
 #define SCSIDEVICE_DATASOURCE_INTERNAL 0
 #define SCSIDEVICE_DATASOURCE_SDCARD 1
-#define ERROR -1
+
+// these will be converted in MSC into CSW_PASS, CSW_FAILURE, CSW_PHASE_ERROR
+#define PASS 	 0
+#define FAILURE -1
+#define PHASE_ERROR -2
 
 class SCSIDeviceClass {
 public:
@@ -86,7 +90,7 @@ private:
 	uint8_t additionalSenseCode;
 	uint8_t additionalSenseCodeQualifier;
 	bool incorrectLengthIndicator;
-
+	bool isWriteProtected;
 public:
 	uint8_t scsiStatus;
 

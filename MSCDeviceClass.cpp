@@ -292,7 +292,6 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 		csw.bCSWStatus = USB_CSW_STATUS_PASS;
 	}else{
 		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
-
 	}
 
 	//debug+="  USB_Send CSW\n";
@@ -302,6 +301,10 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	//Serial.print(debug); debug="";
 	USBDevice.flush(txEndpoint);
 
+	/* try ????
+	if (scsiDev.scsiStatus != GOOD)
+		USBDevice.stall(txEndpoint);
+	*/
 	return slen;
 }
 
@@ -333,28 +336,35 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	if (txlen < 0) return -1; // error
 
 	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
-	while (slen < txlen && rl>0){
-		rl = scsiDev.readData(data);
-		//lcdConsole.println("  read rl:"+ String(rl));
-		if (rl < 0) {
-			lcdConsole.println("  ReadDataError:"+ String(rl));
-			return -1; // error
-		}
-		rlen += rl;
-		//lcdConsole.println("  send rl:"+ String(rl));
-		sl = USBDevice.send(txEndpoint, data, rl);
-		//lcdConsole.println("  sent sl:"+ String(sl));
-		slen += sl;
-		//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
-	}
-	//USBDevice.flush(txEndpoint);
 
-	/* For Data-In the device shall report in the dCSWDataResidue
-	 * the difference between the amount of data expected as stated
-	 * in the dCBWDataTransferLength and the actual amount of relevant
-	 * data sent by the device. */
-	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
-	csw.bCSWStatus = USB_CSW_STATUS_PASS; // TODO error handling
+	if (txlen > 0) {
+		while (slen < txlen && rl>0){
+			rl = scsiDev.readData(data);
+			//lcdConsole.println("  read rl:"+ String(rl));
+			//SerialUSB.println("  read rl:"+ String(rl));
+			if (rl < 0) return -1; // error
+			rlen += rl;
+			//SerialUSB.println("  send rl:"+ String(rl));
+			sl = USBDevice.send(txEndpoint, data, rl);
+			//SerialUSB.println("  sent sl:"+ String(sl));
+			slen += sl;
+			//SerialUSB.println("  slen:"+ String(slen));
+			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
+		}
+		//USBDevice.flush(txEndpoint);
+
+		/* For Data-In the device shall report in the dCSWDataResidue
+		 * the difference between the amount of data expected as stated
+		 * in the dCBWDataTransferLength and the actual amount of relevant
+		 * data sent by the device. */
+		csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
+	}
+
+	if (scsiDev.scsiStatus == GOOD) {
+		csw.bCSWStatus = USB_CSW_STATUS_PASS;
+	}else{
+		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
+	}
 
 	//debug+="  USB_Send CSW\n";
 	//Serial.print(debug); debug="";

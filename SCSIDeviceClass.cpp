@@ -24,6 +24,8 @@ SCSIDeviceClass::SCSIDeviceClass():
 	txLen=0;
 	LBAcnt=0;
 
+	isWriteProtected = true;
+
 	additionalSenseCodeQualifier=0;
 	memset(senseInformation,0,4);
 	additionalSenseCode=0;
@@ -131,7 +133,7 @@ int SCSIDeviceClass::initSD(){
 		//lcdConsole.println("SD card initialization failed.");
 		//lcdConsole.println("sdCardErrorCode:"+String(sdCardErrorCode));
 		//lcdConsole.println("sdCardErrorData:"+String(sdCardErrorData));
-		return ERROR;
+		return FAILURE;
 	}
 	return GOOD;
 }
@@ -148,7 +150,7 @@ int SCSIDeviceClass::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32
 		scsiStatus = CHECK_CONDITION;
 		senseKey = HARDWARE_ERROR;
 		requestInfo+=" !sdCard";
-		return ERROR;
+		return FAILURE;
 	}
 
 	if (sdCard->errorCode()) {
@@ -161,7 +163,7 @@ int SCSIDeviceClass::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32
 		senseInformation[0] = sdCardErrorCode;
 		senseInformation[1] = sdCardErrorData;
 		requestInfo+=" ERROR";
-		return ERROR;
+		return FAILURE;
 	}
 	requestInfo+=" GOOD";
 	transferLength = 0;
@@ -204,7 +206,9 @@ int SCSIDeviceClass::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len
 			if (cbd.subpage_code == 0x00 ) {
 				modeSenseData6.mode_data_length = 3;
 				modeSenseData6.medium_type = 0x00;
-				modeSenseData6.dev_specific_param  = 0x00;
+				modeSenseData6.dev_specific_param  = 0x00; // current
+				if (isWriteProtected)
+					modeSenseData6.dev_specific_param  = 0x80; // saved
 				modeSenseData6.block_descr_length = 0;
 			}
 		}
@@ -232,7 +236,7 @@ int SCSIDeviceClass::processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint
 
 	lastLBA = sdCard->cardSize()-1;
 	requestInfo+=" lastLBA:"+String(lastLBA);
-	if (lastLBA < 0) return ERROR;
+	if (lastLBA < 0) return FAILURE;
 	blockSize = 512;
 	//if (sdCard->type() == 1) blockSize = 512;
 
@@ -309,7 +313,13 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 		//lcdConsole.println("readBlock:"+String(LBA) + " to:"+String(rl));
 		uint8_t r = sdCard->readBlock(LBA, transferData+rl);
 
-		//if (r==0) error; TODO
+		if (r==0) {
+			scsiStatus = CHECK_CONDITION;
+			senseKey = MEDIUM_ERROR; // or NOT_READY ?
+			additionalSenseCode = NO_ASC;
+			additionalSenseCodeQualifier = NO_ASCQ;
+			return FAILURE;
+		}
 
 		/* // spoof it
 		if (LBA==0){
@@ -357,12 +367,12 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	if (LBA+txLBAcnt-1 > lastLBA) {
 		senseKey = ILLEGAL_REQUEST;
 		additionalSenseCode = LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
-		additionalSenseCodeQualifier = READ_BOUNDARY_VIOLATION;
+		additionalSenseCodeQualifier = ASCQ_READ_BOUNDARY_VIOLATION;
 		uint32_t lba = LBA+txLBAcnt;
 		memcpy(senseInformation,&lba,4);
 		incorrectLengthIndicator=true;
 		requestInfo+=" LBA OUT_OF_RANGE";
-		return ERROR;
+		return FAILURE;
 	}
 	SerialUSB.println(requestInfo);
 	//if (cbd.transfer_length_a == 0) len=0;
@@ -375,31 +385,17 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 	requestInfo="SCSI_CBD_WRITE_10 ILLEGAL_REQUEST";
 
 /*
- * https://github.com/MicrochipTech/mla_usb/blob/master/src/usb_device_msd.c
-    //The media appears to be write protected.
-    //Let host know error occurred.  The bCSWStatus flag is also used by
-    //the write handler, to know not to even attempt the write sequence.
-    msd_csw.bCSWStatus = MSD_CSW_COMMAND_FAILED;
-
-    //Set sense keys so the host knows what caused the error.
-    gblSenseData[LUN_INDEX].SenseKey=S_DATA_PROTECT;
-    gblSenseData[LUN_INDEX].ASC=ASC_WRITE_PROTECTED;
-    gblSenseData[LUN_INDEX].ASCQ=ASCQ_WRITE_PROTECTED;
-
     //Stall the OUT endpoint, so as to promptly inform the host
     //that the data cannot be accepted, due to write protected media.
     USBStallEndpoint(MSD_DATA_OUT_EP, OUT_FROM_HOST);
 */
-
-
-
-	scsiStatus = CHECK_CONDITION;
-	senseKey = ILLEGAL_REQUEST;
-	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
-
-
-
-	return ERROR;
+	if (isWriteProtected) {
+		scsiStatus = CHECK_CONDITION;
+		senseKey = DATA_PROTECT; // or NOT_READY ?
+		additionalSenseCode = ASC_WRITE_PROTECTED;
+		additionalSenseCodeQualifier = ASCQ_WRITE_PROTECTED;
+		return FAILURE;
+	}
 	return len;
 }
 
@@ -408,7 +404,7 @@ int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAP
 	scsiStatus = CHECK_CONDITION;
 	senseKey = ILLEGAL_REQUEST;
 	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
-	return ERROR;
+	return FAILURE;
 }
 
 int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
@@ -474,7 +470,7 @@ int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
 	scsiStatus = CHECK_CONDITION;
 	senseKey = ILLEGAL_REQUEST;
 	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
-	return ERROR;
+	return FAILURE;
 }
 
 
