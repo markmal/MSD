@@ -373,9 +373,32 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 
 int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 	requestInfo="SCSI_CBD_WRITE_10 ILLEGAL_REQUEST";
+
+/*
+ * https://github.com/MicrochipTech/mla_usb/blob/master/src/usb_device_msd.c
+    //The media appears to be write protected.
+    //Let host know error occurred.  The bCSWStatus flag is also used by
+    //the write handler, to know not to even attempt the write sequence.
+    msd_csw.bCSWStatus = MSD_CSW_COMMAND_FAILED;
+
+    //Set sense keys so the host knows what caused the error.
+    gblSenseData[LUN_INDEX].SenseKey=S_DATA_PROTECT;
+    gblSenseData[LUN_INDEX].ASC=ASC_WRITE_PROTECTED;
+    gblSenseData[LUN_INDEX].ASCQ=ASCQ_WRITE_PROTECTED;
+
+    //Stall the OUT endpoint, so as to promptly inform the host
+    //that the data cannot be accepted, due to write protected media.
+    USBStallEndpoint(MSD_DATA_OUT_EP, OUT_FROM_HOST);
+*/
+
+
+
 	scsiStatus = CHECK_CONDITION;
 	senseKey = ILLEGAL_REQUEST;
 	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
+
+
+
 	return ERROR;
 	return len;
 }
