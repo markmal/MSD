@@ -133,9 +133,9 @@ struct SCSI_CAPACITY_DATA_16 {
 struct SCSI_CBD_READ_10 {
 	  uint8_t	opcode; // 0x28
 	  uint8_t	obsolete:1, FUA_NV:1, reserv1:1, FUA:1, DPO:1, RDPROTECT:3;
-	  uint32_t	LBA;
+	  uint8_t	LBA_a[4]; // ! Do not use uint32_t ! the array is here for proper alignment!
 	  uint8_t	GROUP_NO:5, reserv2:3;
-	  uint16_t	transfer_length;
+	  uint8_t	transfer_length_a[2]; // ! Do not use uint16_t ! the array is here for proper alignment!
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[6];
 };
@@ -143,9 +143,9 @@ struct SCSI_CBD_READ_10 {
 struct SCSI_CBD_WRITE_10 {
 	  uint8_t	opcode; // 0x2A
 	  uint8_t	obsolete:1, FUA_NV:1, reserv1:1, FUA:1, DPO:1, RDPROTECT:3;
-	  uint32_t	LBA;
+	  uint8_t	LBA_a[4]; // ! Do not use uint32_t ! the array is here for proper alignment!
 	  uint8_t	GROUP_NO:5, reserv2:3;
-	  uint16_t	transfer_length;
+	  uint8_t	transfer_length_a[2]; // ! Do not use uint16_t ! the array is here for proper alignment!
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[6];
 };
@@ -350,5 +350,14 @@ void msb2lsb(uint32_t& s, uint32_t& d);
 void msb2lsb(uint64_t& s, uint64_t& d);
 
 
+/*
+ * returns uint16_t from MSB-LSB array
+ */
+uint16_t toUint16(uint8_t a[2]);
+
+/*
+ * returns uint32_t from MSB-LSB array
+ */
+uint32_t toUint32(uint8_t a[4]);
 
 #endif /* MSC__SCSI_h */

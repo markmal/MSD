@@ -244,13 +244,6 @@ int SCSIDeviceClass::processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint
 	return 8;
 }
 
-uint16_t toUint16(uint8_t a[2]){
-	return a[0]<<8 | a[1];
-}
-uint32_t toUint32(uint8_t a[4]){
-	return a[0]<<24 | a[1]<<16 | a[2]<<8 | a[3];
-}
-
 // This is first 512 block from a real SD card. Needed for FDisk and FAT. Remove after real SD card implementation
 uint8_t BLOCK0[512] = {
 		  0xfa, 0x33, 0xc0, 0x8e, 0xd0, 0xbc, 0x00, 0x7c, 0x8b, 0xf4, 0x50, 0x07,
@@ -341,14 +334,14 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	requestInfo+=" processRead10";
 
-	SerialUSB.print(requestInfo);
-	SerialUSB.println(" len"+String(len));
+	//Serial.print(requestInfo);
+	//Serial.println(" len"+String(len));
 
-	msb2lsb(cbd.LBA, txLBA);
-	SerialUSB.println(" txLBA"+String(txLBA,16));
+	txLBA = toUint32(cbd.LBA_a);
+	//Serial.println(" txLBA"+String(txLBA,16));
 
-	msb2lsb(cbd.transfer_length, txLBAcnt);
-	SerialUSB.println(" txLBAcnt"+String(txLBAcnt,16));
+	txLBAcnt = toUint16(cbd.transfer_length_a);
+	//Serial.println(" txLBAcnt"+String(txLBAcnt,16));
 
 
 	txLen = txLBAcnt * blockSize;
@@ -361,7 +354,7 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	//lcdConsole.println("Read lba:"+String(LBA) +"ul:"+String(txLen));
 	requestInfo+=" LBA:"+String(LBA)+" cnt:"+String(txLBAcnt);
 
-	if (LBA+txLBAcnt > lastLBA) {
+	if (LBA+txLBAcnt-1 > lastLBA) {
 		senseKey = ILLEGAL_REQUEST;
 		additionalSenseCode = LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
 		additionalSenseCodeQualifier = READ_BOUNDARY_VIOLATION;
@@ -372,7 +365,7 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 		return ERROR;
 	}
 	SerialUSB.println(requestInfo);
-	if (cbd.transfer_length == 0) len=0;
+	//if (cbd.transfer_length_a == 0) len=0;
 	requestInfo+=" GOOD";
 	return txLen;
 }

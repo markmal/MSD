@@ -45,38 +45,17 @@ void msb2lsb(uint64_t& s, uint64_t& d){
 }
 
 /*
-uint16_t msb2lsb(uint16_t v){
-	uint8_t src[2] = (uint8_t*)&v;
-	uint8_t rsl[2];
-	rsl[0] = src[1];
-	rsl[1] = src[2];
-	return rsl;
+ * returns uint16_t from MSB-LSB array
+ */
+uint16_t toUint16(uint8_t a[2]){
+	return a[0]<<8 | a[1];
 }
 
-uint32_t msb2lsb(uint32_t v){
-	uint8_t src[4] = (uint8_t*)&v;
-	uint8_t rsl[4];
-	rsl[0] = src[3];
-	rsl[1] = src[2];
-	rsl[2] = src[1];
-	rsl[3] = src[0];
-	return rsl;
+/*
+ * returns uint32_t from MSB-LSB array
+ */
+uint32_t toUint32(uint8_t a[4]){
+	return a[0]<<24 | a[1]<<16 | a[2]<<8 | a[3];
 }
-
-uint64_t msb2lsb(uint64_t v){
-	uint8_t src[8] = (uint8_t*)&v;
-	uint8_t rsl[8];
-	rsl[0] = src[7];
-	rsl[1] = src[6];
-	rsl[2] = src[5];
-	rsl[3] = src[4];
-	rsl[4] = src[3];
-	rsl[5] = src[2];
-	rsl[6] = src[1];
-	rsl[7] = src[0];
-	return rsl;
-}
-*/
-
 
 

@@ -261,7 +261,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	int txlen = scsiDev.processRequest(cbd, tfLen);
 
 	//lcdConsole.println("  txlen:"+ String(txlen));
-	SerialUSB.println("  txlen:"+ String(txlen));
+	//SerialUSB.println("  txlen:"+ String(txlen));
 	// negative txlen means ERROR
 	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
 
@@ -269,14 +269,14 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 		while (slen < txlen && rl>0){
 			rl = scsiDev.readData(data);
 			//lcdConsole.println("  read rl:"+ String(rl));
-			SerialUSB.println("  read rl:"+ String(rl));
+			//SerialUSB.println("  read rl:"+ String(rl));
 			if (rl < 0) return -1; // error
 			rlen += rl;
-			SerialUSB.println("  send rl:"+ String(rl));
+			//SerialUSB.println("  send rl:"+ String(rl));
 			sl = USBDevice.send(txEndpoint, data, rl);
-			SerialUSB.println("  sent sl:"+ String(sl));
+			//SerialUSB.println("  sent sl:"+ String(sl));
 			slen += sl;
-			SerialUSB.println("  slen:"+ String(slen));
+			//SerialUSB.println("  slen:"+ String(slen));
 			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
 		}
 		//USBDevice.flush(txEndpoint);
