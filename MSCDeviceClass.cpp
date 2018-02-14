@@ -14,6 +14,15 @@
 #include "my_debug.h"
 #include "LcdConsole.h"
 
+//#define MSC_DEVICE_CLASS_DEBUG
+#ifdef MSC_DEVICE_CLASS_DEBUG
+	#define print(str) Serial.print(str)
+	#define println(str) Serial.println(str)
+#else
+	#define print(str)
+	#define println(str)
+#endif
+
 //#if defined(USBCON)
 //byte blockData[MSC_BLOCK_DATA_SZ];
 
@@ -202,7 +211,7 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 }
 
 bool MSCDeviceClass::reset(){
-	//Serial.println("reset");
+	//println("reset");
 	// TODO actual reset
 	return true;
 }
@@ -263,7 +272,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	//lcdConsole.println("  txlen:"+ String(txlen));
 	//SerialUSB.println("  txlen:"+ String(txlen));
 	// negative txlen means ERROR
-	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
+	int slen=0, sl=0; int rlen=0; int rl=txlen;
 
 	if (txlen > 0) {
 		while (slen < txlen && rl>0){
@@ -279,7 +288,6 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 			//SerialUSB.println("  slen:"+ String(slen));
 			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
 		}
-		//USBDevice.flush(txEndpoint);
 
 		/* For Data-In the device shall report in the dCSWDataResidue
 		 * the difference between the amount of data expected as stated
@@ -294,11 +302,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
 	}
 
-	//debug+="  USB_Send CSW\n";
-	//Serial.print(debug); debug="";
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
-	//debug+="  USB_Sent CSW\n";
-	//Serial.print(debug); debug="";
 	USBDevice.flush(txEndpoint);
 
 	/* try ????
@@ -313,7 +317,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
  */
 uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	//lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
-
+	println("OUT:"+ String(cbw.dCBWDataTransferLength));
 	//debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
 	//uint16_t rlen = cbw.dCBWDataTransferLength;
 	uint32_t tfLen = cbw.dCBWDataTransferLength;
@@ -332,26 +336,49 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 
 	int txlen = scsiDev.processRequest(cbd, tfLen);
 	//lcdConsole.println("  txlen:"+ String(txlen));
-	Serial.println("  txlen:"+ String(txlen));
+	println("  txlen:"+ String(txlen));
 
 	uint32_t wlen=0, rl=0; int rlen=0; int wl=txlen;
+	uint32_t rcvl=0;
 
 	if (txlen > 0) {
 		while (wlen < txlen && wl>0){
 			rl=0;
-			uint32_t rcvl = scsiDev.getMaxTransferLength();
+			rcvl = scsiDev.getMaxTransferLength();
 			if (txlen<rcvl) rcvl=txlen;
+			if ((txlen-wlen) < rcvl) rcvl = txlen-wlen;
 			while (rl < rcvl ){
-				while (!USBDevice.available(rxEndpoint)) delay(1);
-				int r = USBDevice.recv(rxEndpoint, data+rl, wl);
-				Serial.println("  recv r:"+ String(r));
+				uint32_t ms1 = millis(); uint32_t waittime=0;
+				while (USBDevice.available(rxEndpoint) < ((256 < (rcvl-rl))?256:(rcvl-rl))
+						&& (waittime < USB_READ_TIMEOUT_MS)) {
+					//delay(1);
+					waittime = millis() - ms1;
+				}
+				if (waittime >= USB_READ_TIMEOUT_MS) {
+					csw.bCSWStatus = USB_CSW_STATUS_PHASE_ERROR;
+					println("USB_RECEIVE_TIMEOUT");
+					goto USB_RECEIVE_ERROR;
+				}
+				println("      rl:"+ String(rl));
+
+				int r = USBDevice.recv(rxEndpoint, data+rl, rcvl-rl);
+
+				println("  recv r:"+ String(r));
 				rl+=r;
+				println("      next rl:"+ String(rl) + " of rcvl:"+ String(rcvl));
 			}
 			rlen += rl;
-			Serial.println("  rlen:"+ String(rlen));
+			println("  rlen:"+ String(rlen));
 			wl = scsiDev.writeData(data);
 			wlen += wl;
-			Serial.println("  wlen:"+ String(wlen));
+			println("  wlen:"+ String(wlen) + " of txlen:"+ String(txlen));
+
+			if (scsiDev.scsiStatus != GOOD) {
+				csw.bCSWStatus = USB_CSW_STATUS_PHASE_ERROR;
+				println("USB_CSW_STATUS_PHASE_ERROR");
+				goto SCSI_WRITE_ERROR;
+			}
+
 		}
 		csw.dCSWDataResidue = cbw.dCBWDataTransferLength - wlen;
 	}
@@ -359,14 +386,18 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	if (scsiDev.scsiStatus == GOOD) {
 		csw.bCSWStatus = USB_CSW_STATUS_PASS;
 	}else{
-		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
+		csw.bCSWStatus = USB_CSW_STATUS_PHASE_ERROR;
+		goto SCSI_WRITE_ERROR;
 	}
 
+	USB_RECEIVE_ERROR:
+	SCSI_WRITE_ERROR:
+
 	//debug+="  USB_Send CSW\n";
-	//Serial.print(debug); debug="";
+	//print(debug); debug="";
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
 	//debug+="  USB_Sent CSW\n";
-	//Serial.print(debug); debug="";
+	//print(debug); debug="";
 	USBDevice.flush(txEndpoint);
 
 	return wlen;
@@ -374,10 +405,10 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 
 uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 	//debug += "MSC_::receiveBlock()";
-	//Serial.print(debug); debug="";
+	//print(debug); debug="";
 	uint32_t rxa = USBDevice.available(rxEndpoint);
 	//debug += "  USBDevice.available rx:"+String(rxa)+"\n";
-	//Serial.print(debug); debug="";
+	//print(debug); debug="";
 
 	if (rxa >= USB_CBW_SIZE) {
 		int r = USB_Recv(rxEndpoint, &cbw, USB_CBW_SIZE);

@@ -13,6 +13,16 @@
 #include "SCSI.h"
 #include "LcdConsole.h"
 
+//#define SCSI_DEVICE_CLASS_DEBUG
+#ifdef SCSI_DEVICE_CLASS_DEBUG
+	#define print(str) Serial.print(str)
+	#define println(str) Serial.println(str)
+#else
+	#define print(str)
+	#define println(str)
+#endif
+
+
 SCSIDeviceClass::SCSIDeviceClass():
 	lastLBA(0), LBA(0), blockSize(SD_BLOCK_SIZE), sdCardErrorCode(0), sdCardErrorData(0),
 	scsiStatus(GOOD), senseKey(0)
@@ -349,14 +359,14 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	requestInfo+=" processRead10";
 
-	//Serial.print(requestInfo);
-	//Serial.println(" len"+String(len));
+	//print(requestInfo);
+	//println(" len"+String(len));
 
 	txLBA = toUint32(cbd.LBA_a);
-	//Serial.println(" txLBA"+String(txLBA,16));
+	//println(" txLBA"+String(txLBA,16));
 
 	txLBAcnt = toUint16(cbd.transfer_length_a);
-	//Serial.println(" txLBAcnt"+String(txLBAcnt,16));
+	//println(" txLBAcnt"+String(txLBAcnt,16));
 
 
 	txLen = txLBAcnt * blockSize;
@@ -379,14 +389,14 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 		requestInfo+=" LBA OUT_OF_RANGE";
 		return FAILURE;
 	}
-	Serial.println(requestInfo);
+	println(requestInfo);
 	//if (cbd.transfer_length_a == 0) len=0;
 	requestInfo+=" GOOD";
 	return txLen;
 }
 
 int SCSIDeviceClass::writeData(uint8_t* &data){
-	Serial.print(requestInfo+" writeData");
+	println(requestInfo+" writeData");
 
 	data = transferData;
 
@@ -396,15 +406,28 @@ int SCSIDeviceClass::writeData(uint8_t* &data){
 	int wl = 0;
 	while ( cnt > 0 ) {
 
+		if (LBA+txLBAcnt-1 > lastLBA) {
+			senseKey = ILLEGAL_REQUEST;
+			additionalSenseCode = LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
+			additionalSenseCodeQualifier = ASCQ_READ_BOUNDARY_VIOLATION;
+			uint32_t lba = LBA+txLBAcnt;
+			memcpy(senseInformation,&lba,4);
+			incorrectLengthIndicator=true;
+			requestInfo+=" LBA OUT_OF_RANGE";
+			println(" LBA OUT_OF_RANGE");
+			return FAILURE;
+		}
+
 		uint8_t r = sdCard->writeBlock(LBA, data+wl);
 		//uint8_t r = 1; //fake write
-		Serial.println("writeBlock LBA:"+String(LBA)+" wl:"+String(wl));
+		println(" writeBlock LBA:"+String(LBA)+" wl:"+String(wl));
 
 		if (r==0) {
 			scsiStatus = CHECK_CONDITION;
 			senseKey = MEDIUM_ERROR; // or NOT_READY ?
 			additionalSenseCode = NO_ASC;
 			additionalSenseCodeQualifier = NO_ASCQ;
+			println(" MEDIUM_ERROR");
 			return FAILURE;
 		}
 
@@ -425,14 +448,15 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 		senseKey = DATA_PROTECT; // or NOT_READY ?
 		additionalSenseCode = ASC_WRITE_PROTECTED;
 		additionalSenseCodeQualifier = ASCQ_WRITE_PROTECTED;
+		println(" WRITE_PROTECTED");
 		return FAILURE;
 	}
 
 	txLBA = toUint32(cbd.LBA_a);
-	//Serial.println(" txLBA"+String(txLBA,16));
+	//println(" txLBA"+String(txLBA,16));
 
 	txLBAcnt = toUint16(cbd.transfer_length_a);
-	//Serial.println(" txLBAcnt"+String(txLBAcnt,16));
+	//println(" txLBAcnt"+String(txLBAcnt,16));
 
 	txLen = txLBAcnt * blockSize;
 	LBA = txLBA;
@@ -452,11 +476,14 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 		memcpy(senseInformation,&lba,4);
 		incorrectLengthIndicator=true;
 		requestInfo+=" LBA OUT_OF_RANGE";
+		println(" LBA OUT_OF_RANGE");
 		return FAILURE;
 	}
-	Serial.println(requestInfo);
 	//if (cbd.transfer_length_a == 0) len=0;
 	requestInfo+=" GOOD";
+
+	//println(requestInfo); requestInfo="";
+
 	return txLen;
 
 }

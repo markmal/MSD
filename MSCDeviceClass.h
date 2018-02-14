@@ -22,6 +22,7 @@
 #define USB_Flush					USBDevice.flush
 #define is_write_enabled(x)			(1)
 
+#define USB_READ_TIMEOUT_MS 5000
 
 #define NUM_INTERFACE 1
 #define NUM_ENDPOINTS 2
@@ -118,7 +119,7 @@ struct USB_MSC_CSW {
 #define  USB_CSW_SIGNATURE          0x53425355	//!< dCSWSignature value LE
 #define  USB_CSW_STATUS_PASS        0x00	//!< Command Passed
 #define  USB_CSW_STATUS_FAIL        0x01	//!< Command Failed
-#define  USB_CSW_STATUS_PE          0x02	//!< Phase Error
+#define  USB_CSW_STATUS_PHASE_ERROR          0x02	//!< Phase Error
 
 
 
