@@ -332,32 +332,28 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 
 	int txlen = scsiDev.processRequest(cbd, tfLen);
 	//lcdConsole.println("  txlen:"+ String(txlen));
-	//SerialUSB.println("  txlen:"+ String(txlen));
-	if (txlen < 0) return -1; // error
+	Serial.println("  txlen:"+ String(txlen));
 
-	uint32_t slen=0, sl=0; int rlen=0; int rl=txlen;
+	uint32_t wlen=0, rl=0; int rlen=0; int wl=txlen;
 
 	if (txlen > 0) {
-		while (slen < txlen && rl>0){
-			rl = scsiDev.readData(data);
-			//lcdConsole.println("  read rl:"+ String(rl));
-			//SerialUSB.println("  read rl:"+ String(rl));
-			if (rl < 0) return -1; // error
+		while (wlen < txlen && wl>0){
+			rl=0;
+			uint32_t rcvl = scsiDev.getMaxTransferLength();
+			if (txlen<rcvl) rcvl=txlen;
+			while (rl < rcvl ){
+				while (!USBDevice.available(rxEndpoint)) delay(1);
+				int r = USBDevice.recv(rxEndpoint, data+rl, wl);
+				Serial.println("  recv r:"+ String(r));
+				rl+=r;
+			}
 			rlen += rl;
-			//SerialUSB.println("  send rl:"+ String(rl));
-			sl = USBDevice.send(txEndpoint, data, rl);
-			//SerialUSB.println("  sent sl:"+ String(sl));
-			slen += sl;
-			//SerialUSB.println("  slen:"+ String(slen));
-			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
+			Serial.println("  rlen:"+ String(rlen));
+			wl = scsiDev.writeData(data);
+			wlen += wl;
+			Serial.println("  wlen:"+ String(wlen));
 		}
-		//USBDevice.flush(txEndpoint);
-
-		/* For Data-In the device shall report in the dCSWDataResidue
-		 * the difference between the amount of data expected as stated
-		 * in the dCBWDataTransferLength and the actual amount of relevant
-		 * data sent by the device. */
-		csw.dCSWDataResidue = cbw.dCBWDataTransferLength - slen;
+		csw.dCSWDataResidue = cbw.dCBWDataTransferLength - wlen;
 	}
 
 	if (scsiDev.scsiStatus == GOOD) {
@@ -373,7 +369,7 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	//Serial.print(debug); debug="";
 	USBDevice.flush(txEndpoint);
 
-	return slen;
+	return wlen;
 }
 
 uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB

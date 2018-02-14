@@ -5,9 +5,10 @@
  *      Author: mmalakanov
  */
 
-#include <MSCDeviceClass.h>
+#include "MSCDeviceClass.h"
 #include <stdint.h>
-#include <SCSIDeviceClass.h>
+#include <USB/USBAPI.h>
+#include "SCSIDeviceClass.h"
 #include "my_debug.h"
 #include "SCSI.h"
 #include "LcdConsole.h"
@@ -24,7 +25,7 @@ SCSIDeviceClass::SCSIDeviceClass():
 	txLen=0;
 	LBAcnt=0;
 
-	isWriteProtected = true;
+	isWriteProtected = false;
 
 	additionalSenseCodeQualifier=0;
 	memset(senseInformation,0,4);
@@ -51,6 +52,10 @@ SCSIDeviceClass::~SCSIDeviceClass() {
 	// TODO Auto-generated destructor stub
 	delete sdCard;
 	free(transferData);
+}
+
+uint32_t SCSIDeviceClass::getMaxTransferLength(){
+	return maxTransferLength;
 }
 
 int SCSIDeviceClass::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
@@ -374,21 +379,47 @@ int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 		requestInfo+=" LBA OUT_OF_RANGE";
 		return FAILURE;
 	}
-	SerialUSB.println(requestInfo);
+	Serial.println(requestInfo);
 	//if (cbd.transfer_length_a == 0) len=0;
 	requestInfo+=" GOOD";
 	return txLen;
 }
 
+int SCSIDeviceClass::writeData(uint8_t* &data){
+	Serial.print(requestInfo+" writeData");
+
+	data = transferData;
+
+	int cnt = txLBAcnt - LBAcnt;
+	if (cnt > maxTransferLBAcount) cnt = maxTransferLBAcount;
+
+	int wl = 0;
+	while ( cnt > 0 ) {
+
+		uint8_t r = sdCard->writeBlock(LBA, data+wl);
+		//uint8_t r = 1; //fake write
+		Serial.println("writeBlock LBA:"+String(LBA)+" wl:"+String(wl));
+
+		if (r==0) {
+			scsiStatus = CHECK_CONDITION;
+			senseKey = MEDIUM_ERROR; // or NOT_READY ?
+			additionalSenseCode = NO_ASC;
+			additionalSenseCodeQualifier = NO_ASCQ;
+			return FAILURE;
+		}
+
+		cnt--;
+		LBAcnt++;
+		LBA++;
+		wl += blockSize;
+	}
+
+	return wl;
+}
 
 int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
-	requestInfo="SCSI_CBD_WRITE_10 ILLEGAL_REQUEST";
+	requestInfo="processWrite10";
 
-/*
-    //Stall the OUT endpoint, so as to promptly inform the host
-    //that the data cannot be accepted, due to write protected media.
-    USBStallEndpoint(MSD_DATA_OUT_EP, OUT_FROM_HOST);
-*/
 	if (isWriteProtected) {
 		scsiStatus = CHECK_CONDITION;
 		senseKey = DATA_PROTECT; // or NOT_READY ?
@@ -396,7 +427,38 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 		additionalSenseCodeQualifier = ASCQ_WRITE_PROTECTED;
 		return FAILURE;
 	}
-	return len;
+
+	txLBA = toUint32(cbd.LBA_a);
+	//Serial.println(" txLBA"+String(txLBA,16));
+
+	txLBAcnt = toUint16(cbd.transfer_length_a);
+	//Serial.println(" txLBAcnt"+String(txLBAcnt,16));
+
+	txLen = txLBAcnt * blockSize;
+	LBA = txLBA;
+	LBAcnt = 0;
+	dataSource = SCSIDEVICE_DATASOURCE_SDCARD;
+	transferLength = txLen;
+
+	//debug+=" read LBA:"+String(LBA)+" txlen:"+String(txlen)+"\n";
+	//lcdConsole.println("Read lba:"+String(LBA) +"ul:"+String(txLen));
+	requestInfo+=" LBA:"+String(LBA)+" cnt:"+String(txLBAcnt);
+
+	if (LBA+txLBAcnt-1 > lastLBA) {
+		senseKey = ILLEGAL_REQUEST;
+		additionalSenseCode = LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
+		additionalSenseCodeQualifier = ASCQ_READ_BOUNDARY_VIOLATION;
+		uint32_t lba = LBA+txLBAcnt;
+		memcpy(senseInformation,&lba,4);
+		incorrectLengthIndicator=true;
+		requestInfo+=" LBA OUT_OF_RANGE";
+		return FAILURE;
+	}
+	Serial.println(requestInfo);
+	//if (cbd.transfer_length_a == 0) len=0;
+	requestInfo+=" GOOD";
+	return txLen;
+
 }
 
 int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){

@@ -33,8 +33,12 @@ public:
 
 	int initSD();
 
-	int readData(uint8_t* &data);
 	//from the device to the host
+	int readData(uint8_t* &data);
+
+	//from the host to the device
+	int writeData(uint8_t* &data);
+
 	int processRequest(SCSI_CBD &cbwcb, uint32_t len);
 	//from the host to the device
 	//int processOutRequest(SCSI_CBD &cbwcb,	uint8_t* &data, uint8_t& len);
@@ -48,6 +52,8 @@ public:
 	int processWrite10(SCSI_CBD_WRITE_10 &cbd, uint32_t len);
 	int processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len);
 	int processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len);
+
+	uint32_t getMaxTransferLength();
 
 	uint8_t  SDCardType();
 	uint64_t SDCardSize();
