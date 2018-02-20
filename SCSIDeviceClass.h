@@ -8,6 +8,9 @@
 #ifndef MSC__SCSIDevice_h
 #define MSC__SCSIDevice_h
 
+//#define SCSI_DEVICE_CLASS_DEBUG
+#define SCSI_DEVICE_CLASS_LCD_DEBUG
+
 #include <stdint.h>
 //#include <SPI.h>
 //#include <SD.h>

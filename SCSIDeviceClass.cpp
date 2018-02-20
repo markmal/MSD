@@ -13,12 +13,21 @@
 #include "SCSI.h"
 #include "LcdConsole.h"
 
-//#define SCSI_DEVICE_CLASS_DEBUG
+
 #ifdef SCSI_DEVICE_CLASS_DEBUG
 	#define print(str) Serial.print(str)
 	#define println(str) Serial.println(str)
 #else
 	#define print(str)
+	#define println(str)
+#endif
+
+
+#ifdef SCSI_DEVICE_CLASS_LCD_DEBUG
+	#define print(str) lcdConsole.print(str)
+	#define println(str) lcdConsole.println(str)
+#else
+	#define (str)
 	#define println(str)
 #endif
 
