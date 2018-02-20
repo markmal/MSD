@@ -65,7 +65,7 @@ String MSCDeviceClass::getError(){
 
 int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 {
-	debug += "MSC_::getInterface\n";
+	debug += "MSC_::getInterface("+String(*interfaceCount)+")\n";
 
 	*interfaceCount += 1; // uses 1
 
@@ -100,8 +100,7 @@ int MSCDeviceClass::getDescriptor(USBSetup& setup)
 	}
 
 	// In a MSC Class Descriptor wIndex contains the interface number
-	if (setup.wIndex != pluggedInterface) { return 0; }
-
+	if (setup.wIndex != pluggedInterface) {	return 0;}
 
 	// Check if this is a MSC Class Descriptor request
 	if (setup.bmRequestType != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) {
@@ -131,8 +130,9 @@ int MSCDeviceClass::getDescriptor(USBSetup& setup)
 uint8_t MSCDeviceClass::getShortName(char *name)
 {
 	debug += "MSC_::getShortName\n";
-	memcpy(name, "CDC,MSC", 7);
-	return 7;
+	// this will be attached to Serial #. Use only unicode hex chars 0123456789ABCDEF
+	//memcpy(name, "0123456789ABCDEF", 16);
+	return 0;
 }
 
 /*
