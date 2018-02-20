@@ -489,11 +489,47 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 }
 
 int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){
-	requestInfo="READ_FORMAT_CAPACITIES ILLEGAL_REQUEST";
-	scsiStatus = CHECK_CONDITION;
-	senseKey = ILLEGAL_REQUEST;
-	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
-	return FAILURE;
+	println("processRequestReadFormatCapacities:"+String(len));
+	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
+	requestInfo="READ_FORMAT_CAPACITIES";
+	scsiStatus = GOOD;
+
+	uint16_t allocLen;
+	msb2lsb(cbd.allocation_length, allocLen);
+	println("allocLen:"+String(allocLen));
+
+	/* this is hex dump of a good dev
+	 *     r1 r2 r3 CLH  NUM OF BLKS	r
+	0000   00 00 00 10   00 ec e0 00   02 00 02 00
+	                     00 ec e0 00   00 00 02 00
+	*/
+	memset(&readFormatCapacitiesData,0,sizeof(readFormatCapacitiesData));
+
+	readFormatCapacitiesData.capacity_list_header.capacity_list_length = 0x10;
+
+	uint32_t numOfBlks = SDCardSize();
+	uint8_t blockLen[3] = {0x00, 0x02, 0x00}; // 512
+
+	msb2lsb(numOfBlks,
+			readFormatCapacitiesData.maximum_capacity_descritpor.numer_of_blocks);
+	memcpy(readFormatCapacitiesData.maximum_capacity_descritpor.block_length, blockLen, 3);
+	readFormatCapacitiesData.maximum_capacity_descritpor.descritpor_code
+		= FORMAT_CAPACITY_DESCRIPTOR_CODE_FORMATTED_MEDIA_CUR;
+
+	FORMAT_CAPACITY_DESCRIPTOR fcd;
+	msb2lsb(numOfBlks, fcd.numer_of_blocks);
+	memcpy(fcd.block_length, blockLen, 3);
+	fcd.descritpor_code = 0x00;
+	readFormatCapacitiesData.formattable_capacity_descritpors[0] = fcd;
+
+	println("sizeof(readFormatCapacitiesData):"+String(sizeof(readFormatCapacitiesData)));
+
+	memcpy(transferData, &readFormatCapacitiesData, sizeof(readFormatCapacitiesData));
+
+	if (allocLen > len)
+		return len;
+
+	return allocLen;
 }
 
 int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){

@@ -31,6 +31,8 @@
 #define SCSI_WRITE_10 						0x2A
 //#define SCSI_VERIFY 						0x2F
 
+_Pragma("pack(1)")
+
 struct SCSI_CDB_CONTROL { // Generic just get opcode
     uint8_t	LINK:1, obsolete:1, NACA:1, reserv:3, vendorspcfc:2;
 };
@@ -234,6 +236,16 @@ struct SCSI_CBD_READ_FORMAT_CAPACITIES {
 	  uint8_t   rest[6];
 };
 
+#define FORMAT_CAPACITY_DESCRIPTOR_CODE_UNFORMATTED_MEDIA_MAX	0x01
+#define FORMAT_CAPACITY_DESCRIPTOR_CODE_FORMATTED_MEDIA_CUR 	0x02
+#define FORMAT_CAPACITY_DESCRIPTOR_CODE_NO_CARTRIGE_MAX			0x03
+
+struct FORMAT_CAPACITY_DESCRIPTOR {
+	uint32_t numer_of_blocks;
+	uint8_t descritpor_code:2, reserv1:6;
+	uint8_t block_length[3];
+};
+
 struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
 	struct CAPACITY_LIST_HEADER {
 		uint8_t reserv1;
@@ -242,12 +254,11 @@ struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
 		uint8_t capacity_list_length;
 	} capacity_list_header;
 
-	struct CURRENT_CAPACITY_DESCRIPTOR {
-		uint32_t numer_of_blocks;
-		uint8_t descritpor_type:2, reserv1:6;
-		uint8_t block_length[3];
-	} current_capacity_descritpor;
+	FORMAT_CAPACITY_DESCRIPTOR maximum_capacity_descritpor;
+	FORMAT_CAPACITY_DESCRIPTOR formattable_capacity_descritpors[1]; // need one for now
 };
+
+
 
 union SCSI_CBD {
 	SCSI_CBD_GENERIC generic;
@@ -265,6 +276,8 @@ union SCSI_CBD {
 	SCSI_CBD_READ_FORMAT_CAPACITIES  request_read_format_capacities;
 	uint8_t array[16];
 };
+
+_Pragma("pack()")
 
 #define SCSI_UNSUPPORTED_OPERATION	-1
 

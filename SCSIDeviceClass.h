@@ -69,6 +69,7 @@ private:
 	SCSI_CAPACITY_DATA_10 capacity10;
 	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
 	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
+	SCSI_CBD_READ_FORMAT_CAPACITIES_DATA readFormatCapacitiesData;
 
 	uint32_t lastLBA;
 	uint32_t LBA;
