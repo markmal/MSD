@@ -335,7 +335,9 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 	int rl = 0;
 	while ( cnt > 0 ) {
 		//lcdConsole.println("readBlock:"+String(LBA) + " to:"+String(rl));
+		debug+="sdCard->readBlock("+String(LBA)+")\n";
 		uint8_t r = sdCard->readBlock(LBA, transferData+rl);
+		debug+="sdCard->readBlock r:"+String(r)+"\n";
 
 		if (r==0) {
 			scsiStatus = CHECK_CONDITION;

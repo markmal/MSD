@@ -122,9 +122,10 @@ struct USB_MSC_CSW {
 #define  USB_CSW_STATUS_PHASE_ERROR          0x02	//!< Phase Error
 
 
-
-#define MSC_BLOCK_DATA_SZ 512
-//#define MSC_BLOCK_DATA_SZ 64
+//for High Speed
+//#define MSC_BLOCK_DATA_SZ 512
+//currently only Full Speed supported. It requires 64 bytes block max
+#define MSC_BLOCK_DATA_SZ 64
 //extern byte blockData[BLOCK_DATA_SZ];
 //extern String debug;
 
