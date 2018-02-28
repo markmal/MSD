@@ -31,6 +31,11 @@
 #define SCSI_WRITE_10 						0x2A
 //#define SCSI_VERIFY 						0x2F
 
+
+#define SCSI_INQUIRY_SUPPORTED_VPD_PAGES_PAGES	0x00
+#define SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE	0x80
+#define SCSI_INQUIRY_DEVICE_IDENTIFICATION_PAGE	0x83
+
 _Pragma("pack(1)")
 
 struct SCSI_CDB_CONTROL { // Generic just get opcode
@@ -50,6 +55,7 @@ struct SCSI_CBD_INQUIRY {
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
+
 
 //#define INQUIRY_RMB_NOTREMOVABLE 0<<7
 //#define INQUIRY_RMB_REMOVABLE 1<<7
@@ -81,6 +87,42 @@ struct SCSI_STANDARD_INQUIRY_DATA{
 		uint8_t alignTo60[3];
 };
 extern SCSI_STANDARD_INQUIRY_DATA standardInquiry;
+
+struct SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x80
+	uint8_t reserv1;
+	uint8_t page_length; // 12
+	uint8_t product_serial_number[8];
+};
+
+struct IDENTIFICATION_DESCRIPTOR_DATA {
+	uint8_t code_set:4, protocol_identifier:4;
+	uint8_t identifier_type:4, association:2, reserv0:1, PIV:1;
+	uint8_t reserv1;
+	uint8_t identifier_length; // n-3
+	uint8_t identifier[8];
+};
+
+struct SCSI_INQUIRY_DEVICE_IDENTIFICATION_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x83
+	uint8_t reserv1;
+	uint16_t page_length; // MSB,LSB
+	IDENTIFICATION_DESCRIPTOR_DATA identification_descriptor_list[1];
+};
+
+struct SCSI_INQUIRY_SUPPORTED_VPD_PAGES_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x00
+	uint8_t reserv1;
+	uint8_t page_length; // 3
+	uint8_t supported_page_list[2]; // 0x00, 0x80, 0x83
+};
+
 
 /*
 struct SCSI_CBD_READ_FORMAT_CAPACITY {
@@ -251,7 +293,8 @@ struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
 		uint8_t reserv1;
 		uint8_t reserv2;
 		uint8_t reserv3;
-		uint8_t capacity_list_length;
+		uint8_t capacity_list_length; // Capacity List Length field specifies the length in bytes of the Capacity Descriptors that follow. Each
+									  // Capacity Descriptor is eight bytes in length
 	} capacity_list_header;
 
 	FORMAT_CAPACITY_DESCRIPTOR maximum_capacity_descritpor;

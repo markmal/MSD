@@ -130,7 +130,7 @@ uint8_t MSCDeviceClass::getShortName(char *name)
 {
 	debug += "MSC_::getShortName\n";
 	// this will be attached to Serial #. Use only unicode hex chars 0123456789ABCDEF
-	//memcpy(name, "0123456789ABCDEF", 16);
+	memcpy(name, "0123456789ABCDEF", 17);
 	return 0;
 }
 
@@ -171,40 +171,44 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 	if (pluggedInterface != setup.wIndex) {
 		return false;
 	}
+
 	debug += " setup.bRequest:"+String(setup.bRequest)+"\n";
 	debug += " setup.bmRequestType:"+String(setup.bmRequestType)+"\n";
 
 	uint8_t request = setup.bRequest;
 	uint8_t requestType = setup.bmRequestType;
-	//uint16_t length = setup.wLength;
-	//uint16_t value = setup.wValueL + (setup.wValueH << 8);
-	//uint16_t index = setup.wIndex;
+	uint16_t length = setup.wLength;
+	uint16_t value = setup.wValueL + (setup.wValueH << 8);
+	uint16_t index = setup.wIndex;
 
 	if (requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE)
 	{
 		debug += "   requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE\n";
 		debug += "   request:" + String(request) + " 0x"+String(request)+"\n";
-		if (request == MSC_RESET) {
-			debug += "     MSC_RESET\n";
-			reset();
-			return true;
-		}
 		if (request == MSC_GET_MAX_LUN) {
 			debug += "     MSC_GET_MAX_LUN\n";
-			int r = USB_SendControl(pluggedEndpoint, &maxlun, 1);
+			if ((length!=1) || (value!=0)) return false; // stall
+
+			int r = USBDevice.sendControl(pluggedEndpoint, &maxlun, 1);
 			debug += "   r:"+String(r); debug += "\n";
 			return true;
 		}
-		if (request == MSC_SUBCLASS_SCSI) {
+		/*if (request == MSC_SUBCLASS_SCSI) {
 			debug += "     MSC_SUBCLASS_SCSI\n";
 			return true;
-		}
+		}*/
 	}
 
 	if (requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE)
 	{
 		debug += "   requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE\n";
 		debug += "   request:" + String(request) + " 0x"+String(request)+"\n";
+		if (request == MSC_RESET) {
+			debug += "     MSC_RESET\n";
+			if ((length!=0) || (value!=0)) return false; // stall
+			reset();
+			return true;
+		}
 	}
 
 	return false;
@@ -303,7 +307,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	}
 
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
-	USBDevice.flush(txEndpoint);
+	//USBDevice.flush(txEndpoint);
 
 	/* try ????
 	if (scsiDev.scsiStatus != GOOD)
