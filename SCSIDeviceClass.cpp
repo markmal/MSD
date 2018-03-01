@@ -27,7 +27,7 @@
 	#define print(str) lcdConsole.print(str)
 	#define println(str) lcdConsole.println(str)
 #else
-	#define (str)
+	#define print(str)
 	#define println(str)
 #endif
 
@@ -77,7 +77,7 @@ uint32_t SCSIDeviceClass::getMaxTransferLength(){
 	return maxTransferLength;
 }
 
-int SCSIDeviceClass::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+int SCSIDeviceClass::processStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	//lcdConsole.println("Inquiry:"+ String(len));
 	requestInfo+=" processInquiry len:"+String(len);
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
@@ -98,6 +98,76 @@ int SCSIDeviceClass::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	transferLength = 36;
 	return 36;
 }
+
+int SCSIDeviceClass::processInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+	SCSI_INQUIRY_SUPPORTED_VPD_PAGES_DATA supportedVPDPages;
+	supportedVPDPages.peripheral_qualifier = 0;
+	supportedVPDPages.peripheral_device_type = SCSI_SBC2;
+	supportedVPDPages.page_code = 0x00;
+	supportedVPDPages.reserv1 = 0x00;
+	uint8_t supported_page_list[3] = {0x00, 0x80, 0x83};
+	memcpy(supportedVPDPages.supported_page_list, supported_page_list, 3);
+	size_t pl = sizeof(supportedVPDPages);
+	supportedVPDPages.page_length = pl-3;
+	memcpy(transferData, &supportedVPDPages, pl);
+	transferLength = pl;
+	return pl;
+}
+
+int SCSIDeviceClass::processDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+	SCSI_INQUIRY_DEVICE_IDENTIFICATION_DATA deviceIds;
+	deviceIds.peripheral_qualifier = 0; // LUN
+	deviceIds.peripheral_device_type = SCSI_SBC2;
+	deviceIds.page_code = SCSI_INQUIRY_DEVICE_IDENTIFICATION_PAGE;
+	deviceIds.reserv1 = 0x00;
+
+	IDENTIFICATION_DESCRIPTOR_DATA ID1;
+	ID1.protocol_identifier = 0x00; // like Kingston has
+	ID1.association = 0;
+	ID1.PIV = 1; //Protocol Identifier Valid
+	ID1.identifier_length = 8;
+	uint8_t identifier[8] = {'1','2','3','4','5','6','7','8'};
+	memcpy(ID1.identifier, identifier, 8);
+
+	deviceIds.identification_descriptor_list[0] = ID1;
+
+	size_t pl = sizeof(deviceIds);
+	deviceIds.page_length = pl - 3; //  N - 3
+
+	memcpy(transferData, &deviceIds, pl);
+	transferLength = pl;
+	return pl;
+}
+
+
+int SCSIDeviceClass::processInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+	SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE_DATA unitSerialNumberPage;
+	unitSerialNumberPage.peripheral_qualifier = 0;
+	unitSerialNumberPage.peripheral_device_type = SCSI_SBC2;
+	unitSerialNumberPage.page_code = 0x80;
+	unitSerialNumberPage.reserv1 = 0x00;
+	unitSerialNumberPage.page_length = 16;
+	uint8_t product_serial_number[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+	memcpy(unitSerialNumberPage.product_serial_number, product_serial_number, 16);
+	memcpy(transferData, &unitSerialNumberPage, 20);
+	transferLength = 20;
+	return 20;
+}
+
+int SCSIDeviceClass::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+	if(cbd.EVPD == 0) return processStandardInquiry(cbd, len);
+	if(cbd.EVPD == 1) {
+		if (cbd.pgcode == SCSI_INQUIRY_SUPPORTED_VPD_PAGES_PAGES)
+			return processInquirySupportedVPDPages(cbd, len);
+		if (cbd.pgcode == SCSI_INQUIRY_DEVICE_IDENTIFICATION_PAGE)
+			return processDeviceIdentification(cbd, len);
+		if (cbd.pgcode == SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE)
+			return processInquiryUnitSerialNumberPage(cbd, len);
+	}
+	return FAILURE;
+}
+
+
 
 uint8_t  SCSIDeviceClass::SDCardType() {return sdCard->type();}
 uint64_t SCSIDeviceClass::SDCardSize() {return sdCard->cardSize();}
@@ -213,7 +283,7 @@ int SCSIDeviceClass::processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t 
 		requestSenseData.sense_key = NO_SENSE;
 	}
 
-	int alloc_len = cbd.allocation_length;
+	//int alloc_len = cbd.allocation_length;
 	memcpy(transferData, &requestSenseData, sz);
 	transferLength = sz;
 	return sz;
@@ -335,9 +405,9 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 	int rl = 0;
 	while ( cnt > 0 ) {
 		//lcdConsole.println("readBlock:"+String(LBA) + " to:"+String(rl));
-		debug+="sdCard->readBlock("+String(LBA)+")\n";
+		//debug+="sdCard->readBlock("+String(LBA)+")\n";
 		uint8_t r = sdCard->readBlock(LBA, transferData+rl);
-		debug+="sdCard->readBlock r:"+String(r)+"\n";
+		//debug+="sdCard->readBlock r:"+String(r)+"\n";
 
 		if (r==0) {
 			scsiStatus = CHECK_CONDITION;
@@ -500,29 +570,32 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 }
 
 int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){
-	println("processRequestReadFormatCapacities:"+String(len));
+	debug+=("processRequestReadFormatCapacities:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	requestInfo="READ_FORMAT_CAPACITIES";
 	scsiStatus = GOOD;
 
 	uint16_t allocLen;
 	msb2lsb(cbd.allocation_length, allocLen);
-	println("allocLen:"+String(allocLen));
+	debug+=("allocLen:"+String(allocLen));
 
 	/* this is hex dump of a good dev
 	 *     r1 r2 r3 CLH  NUM OF BLKS	r
 	0000   00 00 00 10   00 ec e0 00   02 00 02 00
 	                     00 ec e0 00   00 00 02 00
 	*/
-	memset(&readFormatCapacitiesData,0,sizeof(readFormatCapacitiesData));
+	SCSI_CBD_READ_FORMAT_CAPACITIES_DATA readFormatCapacitiesData;
 
-	readFormatCapacitiesData.capacity_list_header.capacity_list_length = 0x10;
+	memset(&readFormatCapacitiesData, 0,sizeof(readFormatCapacitiesData));
+
+	readFormatCapacitiesData.capacity_list_header.capacity_list_length = 16;
 
 	uint32_t numOfBlks = SDCardSize();
 	uint8_t blockLen[3] = {0x00, 0x02, 0x00}; // 512
 
 	msb2lsb(numOfBlks,
 			readFormatCapacitiesData.maximum_capacity_descritpor.numer_of_blocks);
+
 	memcpy(readFormatCapacitiesData.maximum_capacity_descritpor.block_length, blockLen, 3);
 	readFormatCapacitiesData.maximum_capacity_descritpor.descritpor_code
 		= FORMAT_CAPACITY_DESCRIPTOR_CODE_FORMATTED_MEDIA_CUR;
@@ -533,14 +606,14 @@ int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAP
 	fcd.descritpor_code = 0x00;
 	readFormatCapacitiesData.formattable_capacity_descritpors[0] = fcd;
 
-	println("sizeof(readFormatCapacitiesData):"+String(sizeof(readFormatCapacitiesData)));
+	size_t tl = sizeof(readFormatCapacitiesData);
 
-	memcpy(transferData, &readFormatCapacitiesData, sizeof(readFormatCapacitiesData));
+	debug+=("sizeof(readFormatCapacitiesData):"+String(tl));
 
-	if (allocLen > len)
-		return len;
-
-	return allocLen;
+	if (tl>allocLen) tl=allocLen;
+	memcpy(transferData, &readFormatCapacitiesData, tl);
+	transferLength = tl;
+	return tl;
 }
 
 int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
@@ -602,7 +675,7 @@ int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
 
 	//lcdConsole.println("UNSUPPORTED:"+String(cbd.generic.opcode));
 
-	requestInfo+="ILLEGAL_REQUEST:"+String(cbd.generic.opcode)+" "+String(millis());
+	requestInfo+="ILLEGAL_REQUEST:"+String(cbd.generic.opcode,16)+"h "+String(millis())+"ms";
 	scsiStatus = CHECK_CONDITION;
 	senseKey = ILLEGAL_REQUEST;
 	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;

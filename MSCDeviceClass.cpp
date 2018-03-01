@@ -131,7 +131,7 @@ uint8_t MSCDeviceClass::getShortName(char *name)
 {
 	debug += "MSC_::getShortName\n";
 	// this will be attached to Serial #. Use only unicode hex chars 0123456789ABCDEF
-	memcpy(name, "0123456789ABCDEF", 16);
+	memcpy(name, "0123456789ABCDEF", 17);
 	return 0;
 }
 
@@ -189,14 +189,16 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 			if ((length!=1) || (value!=0))
 				return false; // USB2VC wants stall endpoint on incorrect params.
 			debug += "     MSC_GET_MAX_LUN\n";
-			int r = USB_SendControl(pluggedEndpoint, &maxlun, 1);
+			if ((length!=1) || (value!=0)) return false; // stall
+
+			int r = USBDevice.sendControl(pluggedEndpoint, &maxlun, 1);
 			debug += "   r:"+String(r); debug += "\n";
 			return true;
 		}
-		if (request == MSC_SUBCLASS_SCSI) {
+		/*if (request == MSC_SUBCLASS_SCSI) {
 			debug += "     MSC_SUBCLASS_SCSI\n";
 			return true;
-		}
+		}*/
 	}
 
 	if (requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE)
@@ -204,13 +206,9 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 		debug += "   requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE\n";
 		debug += "   request:" + String(request) + " 0x"+String(request)+"\n";
 		if (request == MSC_RESET) {
-			return true;
 			debug += "     MSC_RESET\n";
-			if ((length!=0) || (value!=0)){
-				digitalWrite(LED_BUILTIN, HIGH);
-				return false; // USB2VC wants stall endpoint on incorrect params.
-			}
-				//reset();
+			if ((length!=0) || (value!=0)) return false; // stall
+			reset();
 			return true;
 		}
 	}
@@ -316,7 +314,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	}
 
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
-	USBDevice.flush(txEndpoint);
+	//USBDevice.flush(txEndpoint);
 
 	/* try ????
 	if (scsiDev.scsiStatus != GOOD)

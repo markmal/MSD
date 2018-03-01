@@ -31,6 +31,11 @@
 #define SCSI_WRITE_10 						0x2A
 //#define SCSI_VERIFY 						0x2F
 
+
+#define SCSI_INQUIRY_SUPPORTED_VPD_PAGES_PAGES	0x00
+#define SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE	0x80
+#define SCSI_INQUIRY_DEVICE_IDENTIFICATION_PAGE	0x83
+
 _Pragma("pack(1)")
 
 struct SCSI_CDB_CONTROL { // Generic just get opcode
@@ -50,6 +55,7 @@ struct SCSI_CBD_INQUIRY {
 	  SCSI_CDB_CONTROL   control;
 	  uint8_t   rest[10];
 };
+
 
 //#define INQUIRY_RMB_NOTREMOVABLE 0<<7
 //#define INQUIRY_RMB_REMOVABLE 1<<7
@@ -81,6 +87,60 @@ struct SCSI_STANDARD_INQUIRY_DATA{
 		uint8_t alignTo60[3];
 };
 extern SCSI_STANDARD_INQUIRY_DATA standardInquiry;
+
+struct SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x80
+	uint8_t reserv1;
+	uint8_t page_length; // 16
+	uint8_t product_serial_number[16];
+};
+/* -- from Kingston usb flash
+       <header      > < descriptors ...
+0000   00 80 02 02 1f 00 00 00 4b 69 6e 67 73 74 6f 6e  ........Kingston
+0010   44 61 74 61 54 72 61 76 65 6c 65 72 20 32 2e 30  DataTraveler 2.0
+0020   31 2e 30 30 30 00 30 00 30 00 34 00 36 00 41 00  1.000.0.0.4.6.A.
+0030   42 00 30 00 30 00 30 00 30 00 30 00 30 00 30 00  B.0.0.0.0.0.0.0.
+0040   30 00 30 00 30 00 30 00 30 00 34 00 36 00 41 00  0.0.0.0.0.4.6.A.
+0050   42 00 ff f0 a3 74 47 f0 90 90 08 74 57 f0 a3 74  B....tG....tW..t
+0060   9c f0 a3 74 ff f0 a3 74 6d f0 80 0f 74 62 f0 a3  ...t...tm...tb..
+0070   74 ba f0 a3 74 ff f0 a3 74 d3 f0 90 00 ef 02 53  t...t...t......S
+0080   f6 12 5f 5d 12 65 08 90 20 00 e0 f5 30 a3 e0 f5  .._].e.. ...0...
+0090   31 75 33 00 75 34 01 d3 e5 34 95 31 e5 33 95 30  1u3.u4...4.1.3.0
+00a0   50 2d 12 96 cc 33 fe e4 2f f5 82 74 20 3e f5 83  P-...3../..t >..
+00b0   a3 e0 25 e0 ff 05 82 d5 82 02 15 83 15 82 e0 12  ..%.............
+00c0   45 34 12 1f c0 05 34 e5 34 70 02 05 33 80 c8 02  E4....4.4p..3...
+00d0   91 00 02 41 69 7e 00 7f 40 7d 00 90 01 55 12 05  ...Ai~..@}...U..
+00e0   9a 12 08 32 90 60 12 e0 20 e0 0e 90 01 55 12 05  ...2.`.. ....U..
+00f0   9a 74 80 90 00 03 12 01 97 90 01 58 e0 24 fb     .t.........X.$.
+*/
+struct IDENTIFICATION_DESCRIPTOR_DATA {
+	uint8_t code_set:4, protocol_identifier:4;
+	uint8_t identifier_type:4, association:2, reserv0:1, PIV:1;
+	uint8_t reserv1;
+	uint8_t identifier_length; // n-3
+	uint8_t identifier[8];
+};
+
+struct SCSI_INQUIRY_DEVICE_IDENTIFICATION_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x83
+	uint8_t reserv1;
+	uint16_t page_length; // MSB,LSB
+	IDENTIFICATION_DESCRIPTOR_DATA identification_descriptor_list[1];
+};
+
+struct SCSI_INQUIRY_SUPPORTED_VPD_PAGES_DATA {
+	uint8_t peripheral_device_type:5, // 0 - LUN 0
+			peripheral_qualifier:3;   // 0x00 - Direct Access Device
+	uint8_t page_code; // 0x00
+	uint8_t reserv1;
+	uint8_t page_length; // 3
+	uint8_t supported_page_list[2]; // 0x00, 0x80, 0x83
+};
+
 
 /*
 struct SCSI_CBD_READ_FORMAT_CAPACITY {
@@ -251,7 +311,8 @@ struct SCSI_CBD_READ_FORMAT_CAPACITIES_DATA {
 		uint8_t reserv1;
 		uint8_t reserv2;
 		uint8_t reserv3;
-		uint8_t capacity_list_length;
+		uint8_t capacity_list_length; // Capacity List Length field specifies the length in bytes of the Capacity Descriptors that follow. Each
+									  // Capacity Descriptor is eight bytes in length
 	} capacity_list_header;
 
 	FORMAT_CAPACITY_DESCRIPTOR maximum_capacity_descritpor;

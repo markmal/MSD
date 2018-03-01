@@ -56,6 +56,7 @@
 #define MSC_SET_PROTOCOL 0x05
 #define MSC_SET_IDLE     0x06
 
+_Pragma("pack(1)")
 typedef struct
 {
   uint8_t len;      // 9
@@ -113,6 +114,8 @@ struct USB_MSC_CSW {
 	uint8_t bCSWStatus;	//!< Status code
 
 };
+_Pragma("pack()")
+
 
 #define  USB_CSW_SIZE          		13	//!< CSW size
 //#define  USB_CSW_SIGNATURE          0x55534253	//!< dCSWSignature value BE
@@ -122,9 +125,9 @@ struct USB_MSC_CSW {
 #define  USB_CSW_STATUS_PHASE_ERROR          0x02	//!< Phase Error
 
 
-//for High Speed
+// 512 is for High Speed only
 //#define MSC_BLOCK_DATA_SZ 512
-//currently only Full Speed supported. It requires 64 bytes block max
+// M0 can only do Full Speed so MSC block size is 64
 #define MSC_BLOCK_DATA_SZ 64
 //extern byte blockData[BLOCK_DATA_SZ];
 //extern String debug;

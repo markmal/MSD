@@ -8,8 +8,8 @@
 #ifndef MSC__SCSIDevice_h
 #define MSC__SCSIDevice_h
 
-//#define SCSI_DEVICE_CLASS_DEBUG
-#define SCSI_DEVICE_CLASS_LCD_DEBUG
+#define SCSI_DEVICE_CLASS_DEBUG
+//#define SCSI_DEVICE_CLASS_LCD_DEBUG
 
 #include <stdint.h>
 //#include <SPI.h>
@@ -47,6 +47,11 @@ public:
 	//int processOutRequest(SCSI_CBD &cbwcb,	uint8_t* &data, uint8_t& len);
 
 	int processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int processStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int processInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int processDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int processInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+
 	int processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len);
 	int processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len);
 	int processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len);
@@ -72,7 +77,6 @@ private:
 	SCSI_CAPACITY_DATA_10 capacity10;
 	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
 	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
-	SCSI_CBD_READ_FORMAT_CAPACITIES_DATA readFormatCapacitiesData;
 
 	uint32_t lastLBA;
 	uint32_t LBA;
@@ -91,11 +95,11 @@ private:
 	uint16_t LBAcnt;
 	uint16_t maxTransferLBAcount;
 
+	uint8_t senseKey;
 	uint8_t dataSource;
 	uint8_t sdCardErrorCode;
 	uint8_t sdCardErrorData;
 
-	uint8_t senseKey;
 	uint8_t senseInformation[4];
 	uint8_t additionalSenseCode;
 	uint8_t additionalSenseCodeQualifier;
