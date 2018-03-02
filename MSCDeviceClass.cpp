@@ -87,8 +87,8 @@ int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 int MSCDeviceClass::getDescriptor(USBSetup& setup)
 {
 	debug += "MSC_::getDescriptor\n";
-	debug += " setup.bRequest:"+String(setup.bRequest)+"\n";
-	debug += " setup.bmRequestType:"+String(setup.bmRequestType)+"\n";
+	debug += " setup.bRequest:"+String(setup.bRequest,16)+"\n";
+	debug += " setup.bmRequestType:"+String(setup.bmRequestType,16)+"\n";
 
 	if (setup.bmRequestType == REQUEST_DEVICETOHOST) {
 		debug += "   setup.bmRequestType == REQUEST_DEVICETOHOST\n";
@@ -100,7 +100,10 @@ int MSCDeviceClass::getDescriptor(USBSetup& setup)
 	}
 
 	// In a MSC Class Descriptor wIndex contains the interface number
-	if (setup.wIndex != pluggedInterface) {	return 0;}
+	if (setup.wIndex != pluggedInterface) {
+		debug += "   setup.wIndex != pluggedInterface\n";
+		return 0;
+	}
 
 	// Check if this is a MSC Class Descriptor request
 	if (setup.bmRequestType != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) {
