@@ -60,6 +60,7 @@ public:
 	int processWrite10(SCSI_CBD_WRITE_10 &cbd, uint32_t len);
 	int processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len);
 	int processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len);
+	int processStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len);
 
 	uint32_t getMaxTransferLength();
 
@@ -105,6 +106,7 @@ private:
 	uint8_t additionalSenseCodeQualifier;
 	bool incorrectLengthIndicator;
 	bool isWriteProtected;
+	bool isSdCardReady;
 public:
 	uint8_t scsiStatus;
 

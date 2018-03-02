@@ -51,6 +51,7 @@ SCSIDeviceClass::SCSIDeviceClass():
 	additionalSenseCode=0;
 	additionalSenseCodeQualifier=0;
 	incorrectLengthIndicator=false;
+	isSdCardReady=false;
 
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	maxTransferLength = MAX_TRANSFER_LENGTH;
@@ -227,8 +228,10 @@ int SCSIDeviceClass::initSD(){
 		//lcdConsole.println("SD card initialization failed.");
 		//lcdConsole.println("sdCardErrorCode:"+String(sdCardErrorCode));
 		//lcdConsole.println("sdCardErrorData:"+String(sdCardErrorData));
+		isSdCardReady=false;
 		return FAILURE;
 	}
+	isSdCardReady=true;
 	return GOOD;
 }
 
@@ -616,6 +619,28 @@ int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAP
 	return tl;
 }
 
+int SCSIDeviceClass::processStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
+	//lcdConsole.println("ModeSense:"+String(len));
+	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
+	requestInfo+=" cbd.pwr_condition:x"+String(cbd.pwr_condition,16);
+	requestInfo+=" cbd.LOEJ:"+String(cbd.LOEJ);
+	requestInfo+=" cbd.start:"+String(cbd.start);
+
+	if (cbd.pwr_condition == 0) { //START_VALID - Process the START and LOEJ bits.
+		if (cbd.LOEJ && !cbd.start) {
+			isSdCardReady = false;
+		}
+		if (cbd.LOEJ && cbd.start) {
+			initSD();
+		}
+	}
+
+	transferLength = 0;
+	requestInfo+=" OK";
+	return 0;
+}
+
+
 int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
 	scsiStatus = GOOD;
 	senseKey = NO_SENSE;
@@ -668,6 +693,11 @@ int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
 	if (cbd.generic.opcode == SCSI_READ_FORMAT_CAPACITIES){
 		requestInfo+="READ_FORMAT_CAPACITIES";
 		int r = processRequestReadFormatCapacities(cbd.request_read_format_capacities, len);
+		return r;
+	};
+	if (cbd.generic.opcode == SCSI_START_STOP){
+		requestInfo+="SCSI_START_STOP";
+		int r = processStartStop(cbd.start_stop, len);
 		return r;
 	};
 
