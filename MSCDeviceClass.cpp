@@ -294,7 +294,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 	csw.dCSWTag = cbw.dCBWTag;
 	csw.dCSWDataResidue = cbw.dCBWDataTransferLength;
 
-	int txlen = scsiDev.processRequest(cbd, tfLen);
+	int txlen = scsiDev.handleRequest(cbd, tfLen);
 
 	//lcdConsole.println("  txlen:"+ String(txlen));
 	//SerialUSB.println("  txlen:"+ String(txlen));
@@ -365,7 +365,7 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
 	csw.dCSWTag = cbw.dCBWTag;
 
-	int txlen = scsiDev.processRequest(cbd, tfLen);
+	int txlen = scsiDev.handleRequest(cbd, tfLen);
 	//lcdConsole.println("  txlen:"+ String(txlen));
 	println("  txlen:"+ String(txlen));
 

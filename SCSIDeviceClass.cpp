@@ -51,7 +51,7 @@
 
 SCSIDeviceClass::SCSIDeviceClass():
 	lastLBA(0), LBA(0), blockSize(SD_BLOCK_SIZE), sdCardErrorCode(0), sdCardErrorData(0),
-	scsiStatus(GOOD), senseKey(0)
+	senseKey(0), scsiStatus(GOOD)
 {
 	//sdCard = NULL;
 
@@ -77,10 +77,6 @@ SCSIDeviceClass::SCSIDeviceClass():
 	requestInfo = "";
 
 	memset(transferData, 0, MAX_TRANSFER_LENGTH);
-	memset(&inquiryData, 0, sizeof(inquiryData));
-	memset(&capacity10 , 0, sizeof(capacity10));
-	memset(&modeSenseData6, 0, sizeof(modeSenseData6));
-	memset(&requestSenseData, 0, sizeof(requestSenseData));
 
 	sdCard = new Sd2Card();
 }
@@ -95,10 +91,11 @@ uint32_t SCSIDeviceClass::getMaxTransferLength(){
 	return maxTransferLength;
 }
 
-int SCSIDeviceClass::processStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	//lcdConsole.println("Inquiry:"+ String(len));
 	requestInfo+=" processInquiry len:"+String(len);
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
+	SCSI_STANDARD_INQUIRY_DATA inquiryData;
 	memset(&inquiryData, 0, sizeof(inquiryData));
 	inquiryData.peripheral_device_type = SCSI_SBC2;
 	inquiryData.RMB = 1;
@@ -117,7 +114,7 @@ int SCSIDeviceClass::processStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len
 	return 36;
 }
 
-int SCSIDeviceClass::processInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	SCSI_INQUIRY_SUPPORTED_VPD_PAGES_DATA supportedVPDPages;
 	supportedVPDPages.peripheral_qualifier = 0;
 	supportedVPDPages.peripheral_device_type = SCSI_SBC2;
@@ -132,7 +129,7 @@ int SCSIDeviceClass::processInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uin
 	return pl;
 }
 
-int SCSIDeviceClass::processDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	SCSI_INQUIRY_DEVICE_IDENTIFICATION_DATA deviceIds;
 	deviceIds.peripheral_qualifier = 0; // LUN
 	deviceIds.peripheral_device_type = SCSI_SBC2;
@@ -158,7 +155,7 @@ int SCSIDeviceClass::processDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_
 }
 
 
-int SCSIDeviceClass::processInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 	SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE_DATA unitSerialNumberPage;
 	unitSerialNumberPage.peripheral_qualifier = 0;
 	unitSerialNumberPage.peripheral_device_type = SCSI_SBC2;
@@ -172,15 +169,15 @@ int SCSIDeviceClass::processInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, 
 	return 20;
 }
 
-int SCSIDeviceClass::processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
-	if(cbd.EVPD == 0) return processStandardInquiry(cbd, len);
+int SCSIDeviceClass::handleInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
+	if(cbd.EVPD == 0) return handleStandardInquiry(cbd, len);
 	if(cbd.EVPD == 1) {
 		if (cbd.pgcode == SCSI_INQUIRY_SUPPORTED_VPD_PAGES_PAGES)
-			return processInquirySupportedVPDPages(cbd, len);
+			return handleInquirySupportedVPDPages(cbd, len);
 		if (cbd.pgcode == SCSI_INQUIRY_DEVICE_IDENTIFICATION_PAGE)
-			return processDeviceIdentification(cbd, len);
+			return handleDeviceIdentification(cbd, len);
 		if (cbd.pgcode == SCSI_INQUIRY_UNIT_SERIAL_NUMBER_PAGE)
-			return processInquiryUnitSerialNumberPage(cbd, len);
+			return handleInquiryUnitSerialNumberPage(cbd, len);
 	}
 	return FAILURE;
 }
@@ -226,13 +223,13 @@ String  SCSIDeviceClass::getSDCardError(){
 	if (sdCardErrorCode) s += "("+String(sdCardErrorData,16)+"h)";
 	return s;
 }
+
 String  SCSIDeviceClass::getSCSIError(){
 	return "senseKey:"+String(senseKey)
 			+" additionalSenseCode:0x"+String(senseKey,16)
 			+" additionalSenseCodeQualifier:0x"+String(additionalSenseCodeQualifier,16)
 			+" senseInformation:0x"+String(senseInformation[0],16)+String(senseInformation[1],16);
 }
-
 
 int SCSIDeviceClass::begin(){
 	return initSD();
@@ -256,7 +253,7 @@ String getSCSIError(){
 	return "TODO"; //TODO
 }
 
-int SCSIDeviceClass::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len) {
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	// Check if SD is ready
 
@@ -284,9 +281,10 @@ int SCSIDeviceClass::processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32
 	return GOOD;
 }
 
-int SCSIDeviceClass::processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len) {
 	//lcdConsole.println("ModeSense:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
+	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
 	int sz = sizeof(requestSenseData);
 	memset(&requestSenseData,0,sz);
 	if (cbd.desc == 0){ // return fixed sense data
@@ -309,12 +307,15 @@ int SCSIDeviceClass::processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t 
 	return sz;
 }
 
-int SCSIDeviceClass::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len) {
 	//lcdConsole.println("ModeSense:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	requestInfo+=" cbd.PC:x"+String(cbd.PC,16);
 	requestInfo+=" cbd.page_code:x"+String(cbd.page_code,16);
 	requestInfo+=" cbd.subpage_code:x"+String(cbd.subpage_code,16);
+	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
+	int sz = sizeof(modeSenseData6);
+	memset(&modeSenseData6, 0, sz);
 	if (cbd.PC == 0){ // current values
 		if (cbd.page_code == 0x3F) {
 			if (cbd.subpage_code == 0x00 ) {
@@ -327,13 +328,13 @@ int SCSIDeviceClass::processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len
 			}
 		}
 	}
-	transferLength = 4;
-	memcpy(transferData, &modeSenseData6, 4);
+	transferLength = sz;
+	memcpy(transferData, &modeSenseData6, sz);
 	requestInfo+=" OK";
-	return 4;
+	return sz;
 }
 
-int SCSIDeviceClass::processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len){
+int SCSIDeviceClass::handleMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len){
 	//lcdConsole.println("MediumRemoval:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	// if (sdCard in ) return 0
@@ -342,7 +343,7 @@ int SCSIDeviceClass::processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL 
 	return 0;
 }
 
-int SCSIDeviceClass::processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint32_t len) {
 	//lcdConsole.println("ReadCapacity10:"+ String(len));
 	///uint32_t sz = sdCard->cardSize();
 	///capacity10.fields.lastLBA  = sz - 1;
@@ -457,7 +458,7 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 }
 
 
-int SCSIDeviceClass::processRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
+int SCSIDeviceClass::handleRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	requestInfo+=" processRead10";
 
 	//print(requestInfo);
@@ -541,7 +542,7 @@ int SCSIDeviceClass::writeData(uint8_t* &data){
 	return wl;
 }
 
-int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
+int SCSIDeviceClass::handleWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 	requestInfo="processWrite10";
 
 	if (isWriteProtected) {
@@ -589,7 +590,7 @@ int SCSIDeviceClass::processWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 
 }
 
-int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){
+int SCSIDeviceClass::handleRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){
 	debug+=("processRequestReadFormatCapacities:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	requestInfo="READ_FORMAT_CAPACITIES";
@@ -636,7 +637,7 @@ int SCSIDeviceClass::processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAP
 	return tl;
 }
 
-int SCSIDeviceClass::processStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
+int SCSIDeviceClass::handleStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
 	//lcdConsole.println("ModeSense:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	requestInfo+=" cbd.pwr_condition:x"+String(cbd.pwr_condition,16);
@@ -658,7 +659,7 @@ int SCSIDeviceClass::processStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
 }
 
 
-int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
+int SCSIDeviceClass::handleRequest(SCSI_CBD &cbd, uint32_t len){
 	scsiStatus = GOOD;
 	senseKey = NO_SENSE;
 	additionalSenseCode = NO_ASC;
@@ -669,52 +670,52 @@ int SCSIDeviceClass::processRequest(SCSI_CBD &cbd, uint32_t len){
 
 	if (cbd.generic.opcode == SCSI_TEST_UNIT_READY){
 		requestInfo+="TEST_UNIT_READY";
-		int r = processTestUnitReady(cbd.unit_ready, len);
+		int r = handleTestUnitReady(cbd.unit_ready, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_READ_10){
 		requestInfo+="READ";
-		int r = processRead10(cbd.read10, len);
+		int r = handleRead10(cbd.read10, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_WRITE_10){
 		requestInfo+="WRITE";
-		int r = processWrite10(cbd.write10, len);
+		int r = handleWrite10(cbd.write10, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL){
 		requestInfo+="PREVENT_ALLOW_MEDIUM_REMOVAL";
-		int r = processMediumRemoval(cbd.medium_removal, len);
+		int r = handleMediumRemoval(cbd.medium_removal, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_INQUIRY){
 		requestInfo+="INQUIRY";
-		int r = processInquiry(cbd.inquiry, len);
+		int r = handleInquiry(cbd.inquiry, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_READ_CAPACITY_10){
 		requestInfo+="READ_CAPACITY";
-		int r = processReadCapacity10(cbd.read_capacity10, len);
+		int r = handleReadCapacity10(cbd.read_capacity10, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_MODE_SENSE_6){
 		requestInfo+="MODE_SENSE";
-		int r = processModeSense6(cbd.mode_sense6, len);
+		int r = handleModeSense6(cbd.mode_sense6, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_REQUEST_SENSE){
 		requestInfo+="REQUEST_SENSE";
-		int r = processRequestSense(cbd.request_sense, len);
+		int r = handleRequestSense(cbd.request_sense, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_READ_FORMAT_CAPACITIES){
 		requestInfo+="READ_FORMAT_CAPACITIES";
-		int r = processRequestReadFormatCapacities(cbd.request_read_format_capacities, len);
+		int r = handleRequestReadFormatCapacities(cbd.request_read_format_capacities, len);
 		return r;
 	};
 	if (cbd.generic.opcode == SCSI_START_STOP){
 		requestInfo+="SCSI_START_STOP";
-		int r = processStartStop(cbd.start_stop, len);
+		int r = handleStartStop(cbd.start_stop, len);
 		return r;
 	};
 

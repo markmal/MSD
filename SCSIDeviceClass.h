@@ -59,25 +59,23 @@ public:
 	//from the host to the device
 	int writeData(uint8_t* &data);
 
-	int processRequest(SCSI_CBD &cbwcb, uint32_t len);
-	//from the host to the device
-	//int processOutRequest(SCSI_CBD &cbwcb,	uint8_t* &data, uint8_t& len);
+	int handleRequest(SCSI_CBD &cbwcb, uint32_t len);
 
-	int processInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
-	int processStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
-	int processInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
-	int processDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
-	int processInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int handleInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int handleStandardInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int handleInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int handleDeviceIdentification(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
+	int handleInquiryUnitSerialNumberPage(SCSI_CBD_INQUIRY  &cbd, uint32_t len);
 
-	int processTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len);
-	int processRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len);
-	int processModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len);
-	int processReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint32_t len);
-	int processRead10(SCSI_CBD_READ_10  &cbd, uint32_t len);
-	int processWrite10(SCSI_CBD_WRITE_10 &cbd, uint32_t len);
-	int processMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len);
-	int processRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len);
-	int processStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len);
+	int handleTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len);
+	int handleRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t len);
+	int handleModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len);
+	int handleReadCapacity10(SCSI_CBD_READ_CAPACITY_10  &cbd, uint32_t len);
+	int handleRead10(SCSI_CBD_READ_10  &cbd, uint32_t len);
+	int handleWrite10(SCSI_CBD_WRITE_10 &cbd, uint32_t len);
+	int handleMediumRemoval(SCSI_CBD_PREVENT_ALLOW_MEDIUM_REMOVAL &cbd, uint32_t len);
+	int handleRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len);
+	int handleStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len);
 
 	uint32_t getMaxTransferLength();
 
@@ -91,10 +89,10 @@ public:
 	String requestInfo;
 
 private:
-	SCSI_STANDARD_INQUIRY_DATA inquiryData;
-	SCSI_CAPACITY_DATA_10 capacity10;
-	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
-	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
+	//SCSI_STANDARD_INQUIRY_DATA inquiryData;
+	//SCSI_CAPACITY_DATA_10 capacity10;
+	//SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
+	//SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
 
 	uint32_t lastLBA;
 	uint32_t LBA;
