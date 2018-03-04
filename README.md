@@ -7,7 +7,19 @@ The MSC_ class is based on Arduino's PluggableUSBModule to reuse available USB c
 
 NOTES:
 
-IT IS NOT WORKABLE CODE YET! it is in development...
+The device works and partially comply to USB2.0 specs. I am working on full compliance.
+
+It is already workable code. 
+However it is not "just plug the library and play" at this time.
+1. You should use fresh Arduino USB files from repo https://github.com/arduino/ArduinoCore-samd
+2. Fix some issues in these files that are required for Mass Storage Class, if Arduino developers have not fixed them yet.
+  I will provide list of patches in patches directory.
+
+It is quite slow because SAMD21 supports only Full Speed USB 2.0.
+So, when you plug this into your Windows computer it may take couple of minutes until it will be accepted by Windows as removable device.
+
+The MSC interface can be compiled as composite interface together with CDC interface. It can be helpful if you need to see debug output in console.
+Also you can undefine CDC_ENABLED in USB/USBDesc.h. This way your device will be just like a regular USB flash drive.
 
 I am using Adafruit Feather M0 for development and testing so some pins are adjusted to this board.
 
