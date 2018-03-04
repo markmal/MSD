@@ -43,7 +43,7 @@
 //#if defined(USBCON)
 //byte blockData[MSC_BLOCK_DATA_SZ];
 
-//String debug="BEGIN\n";
+//String debug="BEGIN\n");
 
 void blink(uint ms){
       digitalWrite(LED_BUILTIN, HIGH);
@@ -57,7 +57,7 @@ MSCDeviceClass::MSCDeviceClass() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFA
                    //protocol(MSC_REPORT_PROTOCOL),
 				   //idle(0)
 {
-	debug += "Create MSC\n";
+	debugPrint("Create MSC\n");
 	rxEndpoint = 0;
 	txEndpoint = 0;
 	epType[0] =  USB_ENDPOINT_TYPE_BULK | USB_ENDPOINT_OUT(0); //tx
@@ -82,7 +82,7 @@ String MSCDeviceClass::getError(){
 
 int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 {
-	debug += "MSC_::getInterface("+String(*interfaceCount)+")\n";
+	debugPrint("MSC_::getInterface("+String(*interfaceCount)+")\n");
 
 	*interfaceCount += 1; // uses 1
 
@@ -103,28 +103,28 @@ int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 
 int MSCDeviceClass::getDescriptor(USBSetup& setup)
 {
-	debug += "MSC_::getDescriptor\n";
-	debug += " setup.bRequest:"+String(setup.bRequest,16)+"\n";
-	debug += " setup.bmRequestType:"+String(setup.bmRequestType,16)+"\n";
+	debugPrint("MSC_::getDescriptor\n");
+	debugPrint(" setup.bRequest:"+String(setup.bRequest,16)+"\n");
+	debugPrint(" setup.bmRequestType:"+String(setup.bmRequestType,16)+"\n");
 
 	if (setup.bmRequestType == REQUEST_DEVICETOHOST) {
-		debug += "   setup.bmRequestType == REQUEST_DEVICETOHOST\n";
-		debug += "   setup.wIndex: "+String(setup.wIndex)+"\n";
-		debug += "   setup.wLength: "+String(setup.wLength)+"\n";
-		debug += "   setup.wValueL: "+String(setup.wValueL)+"\n";
-		debug += "   setup.wValueH: "+String(setup.wValueH)+"\n";
+		debugPrint("   setup.bmRequestType == REQUEST_DEVICETOHOST\n");
+		debugPrint("   setup.wIndex: "+String(setup.wIndex)+"\n");
+		debugPrint("   setup.wLength: "+String(setup.wLength)+"\n");
+		debugPrint("   setup.wValueL: "+String(setup.wValueL)+"\n");
+		debugPrint("   setup.wValueH: "+String(setup.wValueH)+"\n");
 		return 0;
 	}
 
 	// In a MSC Class Descriptor wIndex contains the interface number
 	if (setup.wIndex != pluggedInterface) {
-		debug += "   setup.wIndex != pluggedInterface\n";
+		debugPrint("   setup.wIndex != pluggedInterface\n");
 		return 0;
 	}
 
 	// Check if this is a MSC Class Descriptor request
 	if (setup.bmRequestType != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) {
-		debug += "   setup.bmRequestType == REQUEST_DEVICETOHOST_STANDARD_INTERFACE\n";
+		debugPrint("   setup.bmRequestType == REQUEST_DEVICETOHOST_STANDARD_INTERFACE\n");
 		return 0;
 	}
 	//if (setup.wValueH != MSC_REPORT_DESCRIPTOR_TYPE) { return 0; }
@@ -149,7 +149,7 @@ int MSCDeviceClass::getDescriptor(USBSetup& setup)
 
 uint8_t MSCDeviceClass::getShortName(char *name)
 {
-	debug += "MSC_::getShortName\n";
+	debugPrint("MSC_::getShortName\n");
 	// this will be attached to Serial #. Use only unicode hex chars 0123456789ABCDEF
 	memcpy(name, "0123456789ABCDEF", 17);
 	return 0;
@@ -187,13 +187,13 @@ uint8_t maxlun = 0;
 // it is required for MSC, host driver needs to set LUN etc...
 bool MSCDeviceClass::setup(USBSetup& setup)
 {
-	debug += "MSC_::setup\n";
+	debugPrint("MSC_::setup\n");
 	if (pluggedInterface != setup.wIndex) {
 		return false;
 	}
 
-	debug += " setup.bRequest:"+String(setup.bRequest)+"\n";
-	debug += " setup.bmRequestType:"+String(setup.bmRequestType)+"\n";
+	debugPrint(" setup.bRequest:"+String(setup.bRequest)+"\n");
+	debugPrint(" setup.bmRequestType:"+String(setup.bmRequestType)+"\n");
 
 	uint8_t request = setup.bRequest;
 	uint8_t requestType = setup.bmRequestType;
@@ -203,30 +203,30 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 
 	if (requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE)
 	{
-		debug += "   requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE\n";
-		debug += "   request:" + String(request) + " 0x"+String(request)+"\n";
+		debugPrint("   requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE\n");
+		debugPrint("   request:" + String(request) + " 0x"+String(request)+"\n");
 		if (request == MSC_GET_MAX_LUN) {
 			if ((length!=1) || (value!=0))
 				return false; // USB2VC wants stall endpoint on incorrect params.
-			debug += "     MSC_GET_MAX_LUN\n";
+			debugPrint("     MSC_GET_MAX_LUN\n");
 			if ((length!=1) || (value!=0)) return false; // stall
 
 			int r = USBDevice.sendControl(pluggedEndpoint, &maxlun, 1);
-			debug += "   r:"+String(r); debug += "\n";
+			debugPrintln("   r:"+String(r));
 			return true;
 		}
 		/*if (request == MSC_SUBCLASS_SCSI) {
-			debug += "     MSC_SUBCLASS_SCSI\n";
+			debugPrint("     MSC_SUBCLASS_SCSI\n");
 			return true;
 		}*/
 	}
 
 	if (requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE)
 	{
-		debug += "   requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE\n";
-		debug += "   request:" + String(request) + " 0x"+String(request)+"\n";
+		debugPrint("   requestType == REQUEST_HOSTTODEVICE_CLASS_INTERFACE\n");
+		debugPrint("   request:" + String(request) + " 0x"+String(request)+"\n");
 		if (request == MSC_RESET) {
-			debug += "     MSC_RESET\n";
+			debugPrint("     MSC_RESET\n");
 			if ((length!=0) || (value!=0)) return false; // stall
 			reset();
 			return true;
@@ -244,20 +244,20 @@ bool MSCDeviceClass::reset(){
 }
 
 void debugCBW(USB_MSC_CBW &cbw){
-	debug += "      cbw.dCBWSignature:"+String(cbw.dCBWSignature)+"\n";
-	debug += "      cbw.dCBWTag:"+String(cbw.dCBWTag)+"\n";
-	debug += "      cbw.dCBWDataTransferLength:"+String(cbw.dCBWDataTransferLength)+"\n";
-	debug += "      cbw.bmCBWFlags:"+String(cbw.bmCBWFlags)
+	debugPrint("      cbw.dCBWSignature:"+String(cbw.dCBWSignature)+"\n");
+	debugPrint("      cbw.dCBWTag:"+String(cbw.dCBWTag)+"\n");
+	debugPrint("      cbw.dCBWDataTransferLength:"+String(cbw.dCBWDataTransferLength)+"\n");
+	debugPrint("      cbw.bmCBWFlags:"+String(cbw.bmCBWFlags)
 			+ ((cbw.bmCBWFlags==USB_CBW_DIRECTION_IN)?"(IN)":
 					((cbw.bmCBWFlags==0)?"(OUT)":"(BAD)"))
-			+"\n";
-	debug += "      cbw.bCBWLUN:"+String(cbw.bCBWLUN)+"\n";
-	debug += "      cbw.bCBWCBLength:"+String(cbw.bCBWCBLength)+"\n";
-	debug += "      cbw.CBWCB:";
+			+"\n");
+	debugPrint("      cbw.bCBWLUN:"+String(cbw.bCBWLUN)+"\n");
+	debugPrint("      cbw.bCBWCBLength:"+String(cbw.bCBWCBLength)+"\n");
+	debugPrint("      cbw.CBWCB:");
 	for (int i=0; i<cbw.bCBWCBLength; i++){
-		debug +=String(cbw.CBWCB[i])+",";
+		debugPrint(String(cbw.CBWCB[i])+",");
 	}
-	debug += "\n";
+	debugPrint("\n");
 }
 
 /*
@@ -277,7 +277,7 @@ String MSCDeviceClass::getSCSIRequestInfo(){
 uint32_t MSCDeviceClass::receiveInRequest(){
 	//lcdConsole.println("IN:"+ String(cbw.dCBWDataTransferLength));
 
-	debug+="USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+	debugPrint("USB_CBW_DIRECTION_IN: len:" + String(cbw.dCBWDataTransferLength)+"\n");
 	//uint16_t rlen = cbw.dCBWDataTransferLength;
 	uint32_t tfLen = cbw.dCBWDataTransferLength;
 
@@ -287,7 +287,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 
 	SCSI_CBD cbd;
 	memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
-	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n";
+	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n");
 
 	USB_MSC_CSW csw;
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
@@ -303,17 +303,17 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 
 	if (txlen > 0) {
 		while (slen < txlen && rl>0){
-			debug+="about scsiDev.readData...";
+			debugPrint("about scsiDev.readData...");
 			rl = scsiDev.readData(data);
-			debug+="scsiDev.readData read:"+String(rl)+"\n";
+			debugPrint("scsiDev.readData read:"+String(rl)+"\n");
 			//lcdConsole.println("  read rl:"+ String(rl));
 			//SerialUSB.println("  read rl:"+ String(rl));
 			if (rl < 0) return -1; // error
 			rlen += rl;
 			//SerialUSB.println("  send rl:"+ String(rl));
-			debug+="  send rl:"+ String(rl)+"\n";
+			debugPrint("  send rl:"+ String(rl)+"\n");
 			sl = USBDevice.send(txEndpoint, data, rl);
-			debug+="  sent sl:"+ String(sl)+"\n";
+			debugPrint("  sent sl:"+ String(sl)+"\n");
 			//SerialUSB.println("  sent sl:"+ String(sl));
 			slen += sl;
 			//SerialUSB.println("  slen:"+ String(slen));
@@ -349,7 +349,7 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	//lcdConsole.println("OUT:"+ String(cbw.dCBWDataTransferLength));
 	println("OUT:"+ String(cbw.dCBWDataTransferLength));
-	debug+="USB_CBW_DIRECTION_OUT: len:" + String(cbw.dCBWDataTransferLength)+"\n";
+	debugPrint("USB_CBW_DIRECTION_OUT: len:" + String(cbw.dCBWDataTransferLength)+"\n");
 	//uint16_t rlen = cbw.dCBWDataTransferLength;
 	uint32_t tfLen = cbw.dCBWDataTransferLength;
 
@@ -359,7 +359,7 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 
 	SCSI_CBD cbd;
 	memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
-	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n";
+	//debug+=" cbd.read10.LBA:"+String(cbd.read10.LBA)+" cbd.read10.length:"+String(cbd.read10.length)+"\n");
 
 	USB_MSC_CSW csw;
 	csw.dCSWSignature = USB_CSW_SIGNATURE;
@@ -424,10 +424,10 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	USB_RECEIVE_ERROR:
 	SCSI_WRITE_ERROR:
 
-	//debug+="  USB_Send CSW\n";
+	//debug+="  USB_Send CSW\n");
 	//print(debug); debug="";
 	USBDevice.send(txEndpoint, &csw, USB_CSW_SIZE);
-	//debug+="  USB_Sent CSW\n";
+	//debug+="  USB_Sent CSW\n");
 	//print(debug); debug="";
 	USBDevice.flush(txEndpoint);
 
@@ -435,16 +435,16 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 }
 
 uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
-	debug += "MSC_::receiveBlock()... ";
+	debugPrint("MSC_::receiveBlock()... ");
 	//print(debug); debug="";
 	uint32_t rxa = USBDevice.available(rxEndpoint);
-	debug += "  USBDevice.available rx:"+String(rxa)+"\n";
+	debugPrint("  USBDevice.available rx:"+String(rxa)+"\n");
 	//print(debug); debug="";
 
 	if (rxa >= USB_CBW_SIZE) {
 		println("avail, receiving "+String(rxa));
 		int r = USBDevice.recv(rxEndpoint, &cbw, USB_CBW_SIZE);
-		if (r > 0) debug += " r:"+String(r)+"\n";
+		if (r > 0) debugPrint(" r:"+String(r)+"\n");
 		if (r==31 && cbw.dCBWSignature == USB_CBW_SIGNATURE){
 			debugCBW(cbw);
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_IN){ // from the device to the host.
@@ -457,7 +457,7 @@ uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 		return r;
 	}
 	else {
-		debug += "\n";
+		debugPrint("\n");
 		scsiDev.requestInfo="";
 		return 0;
 	}
@@ -465,7 +465,7 @@ uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 
 /*
 uint32_t MSC_::sendBlock(){ // sends block to USB
-	debug += " MSC_::sendBlock()\n";
+	debugPrint(" MSC_::sendBlock()\n");
 	return USB_Send(txEndpoint, blockData, BLOCK_DATA_SZ);
 }
 */

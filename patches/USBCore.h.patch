@@ -1,0 +1,74 @@
+--- /home/mark/eclipse-workspace-pio/MSD/Arduino/ArduinoCore-samd-master/cores/arduino/USB/USBCore.h	2018-02-20 16:49:11.000000000 -0500
++++ /home/mark/.platformio/packages/framework-arduinosam/cores/adafruit/USB/USBCore.h	2018-02-20 17:58:16.000000000 -0500
+@@ -33,8 +33,10 @@
+ 
+ // bEndpointAddress in Endpoint Descriptor
+ #define USB_ENDPOINT_DIRECTION_MASK            0x80
+-#define USB_ENDPOINT_OUT(addr)                 ((addr) | 0x00)
+-#define USB_ENDPOINT_IN(addr)                  ((addr) | 0x80)
++//#define USB_ENDPOINT_OUT(addr)                 ((addr) | 0x00)
++//#define USB_ENDPOINT_IN(addr)                  ((addr) | 0x80)
++#define USB_ENDPOINT_OUT(addr)                 uint8_t((addr) | 0x00)
++#define USB_ENDPOINT_IN(addr)                  uint8_t((addr) | 0x80)
+ 
+ #define USB_ENDPOINTS                          7
+ 
+@@ -101,7 +103,8 @@
+ // bMaxPower in Configuration Descriptor
+ #define USB_CONFIG_POWER_MA(mA)                ((mA)/2)
+ #ifndef USB_CONFIG_POWER
+- #define USB_CONFIG_POWER                      (500)
++// #define USB_CONFIG_POWER                      (500)
++ #define USB_CONFIG_POWER                      (250)
+ #endif
+ 
+ #define CDC_V1_10                               0x0110
+@@ -139,6 +142,19 @@
+ 	uint8_t	bNumConfigurations;
+ } DeviceDescriptor;
+ 
++//	Device Qualifier
++typedef struct {
++	uint8_t len;				// 18
++	uint8_t dtype;				// 1 USB_DEVICE_DESCRIPTOR_TYPE
++	uint16_t usbVersion;		// 0x200
++	uint8_t	deviceClass;
++	uint8_t	deviceSubClass;
++	uint8_t	deviceProtocol;
++	uint8_t	packetSize0;		// Packet 0
++	uint8_t	bNumConfigurations;
++	uint8_t	bReserv; // must bt 0
++} DeviceQualifierDescriptor;
++
+ //	Config
+ typedef struct {
+ 	uint8_t	len;			// 9
+@@ -254,14 +270,26 @@
+ 
+ _Pragma("pack()")
+ 
++#define USB_SPEC_110 0x110
++#define USB_SPEC_200 0x200
++#define USB_SPEC_210 0x210
++
+ #define D_DEVICE(_class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs) \
+-	{ 18, 1, 0x200, _class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs }
++	{ 18, 1, USB_SPEC_200, _class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs }
+ /* Table 9-8. Standard Device Descriptor
+  * bLength, bDescriptorType, bcdUSB, bDeviceClass, bDeviceSubClass, bDeviceProtocol, bMaxPacketSize0,
+  *    idVendor, idProduct, bcdDevice, iManufacturer, iProduct, iSerialNumber, bNumConfigurations */
+ 
++#define D_DEVICE_QUALIFIER(_class,_subClass,_proto,_packetSize0,_configs) \
++	{ 18, 1, 0x200, _class,_subClass,_proto,_packetSize0,_configs, 0 }
++/* Table 9-?. Device Qualifier Descriptor
++ * bLength, bDescriptorType, bcdUSB, bDeviceClass, bDeviceSubClass, bDeviceProtocol, bMaxPacketSize0,
++ *     bNumConfigurations, Reserv */
++
+ #define D_CONFIG(_totalLength,_interfaces) \
+-	{ 9, 2, _totalLength,_interfaces, 1, 0, USB_CONFIG_BUS_POWERED | USB_CONFIG_REMOTE_WAKEUP, USB_CONFIG_POWER_MA(USB_CONFIG_POWER) }
++		{ 9, 2, _totalLength,_interfaces, 1, 0, USB_CONFIG_BUS_POWERED, USB_CONFIG_POWER_MA(USB_CONFIG_POWER) }
++
++///{ 9, 2, _totalLength,_interfaces, 1, 0, USB_CONFIG_BUS_POWERED | USB_CONFIG_REMOTE_WAKEUP, USB_CONFIG_POWER_MA(USB_CONFIG_POWER) }
+ /* Table 9-10. Standard Configuration Descriptor
+  * bLength, bDescriptorType, wTotalLength, bNumInterfaces, bConfigurationValue, iConfiguration
+  * bmAttributes, bMaxPower */

@@ -11,7 +11,17 @@
 #include <stdint.h>
 #include <Arduino.h>
 
-extern String debug;
+//extern String debug;
+
+int debugLength();
+
+String debugGet();
+
+void debugClear();
+
+void debugPrint(String s);
+
+void debugPrintln(String s);
 
 void debugPrintlnSI(String s, int i);
 

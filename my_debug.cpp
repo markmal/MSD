@@ -10,6 +10,20 @@
 
 String debug = "DEBUG\n";
 
+int debugLength(){ return debug.length(); }
+
+String debugGet(){	return debug; }
+
+void debugClear(){	debug = "";}
+
+void debugPrint(String s){
+	debug += s + "\n";
+}
+
+void debugPrintln(String s){
+	debug += s + "\n";
+}
+
 void debugPrintlnSI(String s, int i){
 	debug += s + String(i) + "\n";
 }

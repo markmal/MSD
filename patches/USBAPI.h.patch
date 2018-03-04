@@ -1,0 +1,40 @@
+--- /home/mark/eclipse-workspace-pio/MSD/Arduino/ArduinoCore-samd-master/cores/arduino/USB/USBAPI.h	2018-02-20 16:49:11.000000000 -0500
++++ /home/mark/.platformio/packages/framework-arduinosam/cores/adafruit/USB/USBAPI.h	2018-02-25 14:37:55.314273793 -0500
+@@ -77,7 +77,7 @@
+ 	uint32_t sendControl(int /* ep */, const void *data, uint32_t len) { return sendControl(data, len); }
+ 	uint32_t recvControl(void *data, uint32_t len);
+ 	uint32_t sendConfiguration(uint32_t maxlen);
+-	bool sendStringDescriptor(const uint8_t *string, uint8_t maxlen);
++	bool sendStringDescriptor(const uint8_t *string, uint16_t maxlen);
+ 	void initControl(int end);
+ 	uint8_t SendInterfaces(uint32_t* total);
+ 	void packMessages(bool val);
+@@ -103,7 +103,10 @@
+ 	void ISRHandler();
+ 
+ private:
++	inline uint32_t epBank1waitTransmisson(uint32_t ep);
++	bool epBank1Transmisson_Synchronous = true;
+ 	bool initialized;
++
+ };
+ 
+ extern USBDeviceClass USBDevice;
+@@ -177,7 +180,9 @@
+ 	RingBuffer *_cdc_rx_buffer;
+ 	bool stalled;
+ };
+-extern Serial_ SerialUSB;
++//extern Serial_ SerialUSB;
++// def by Adafuit
++extern Serial_ Serial;
+ 
+ //================================================================================
+ //================================================================================
+@@ -199,4 +204,6 @@
+ uint32_t		CDC_GetDescriptor(uint32_t i);
+ bool	CDC_Setup(USBSetup& setup);
+ 
++extern String debug;
++
+ #endif  // __cplusplus

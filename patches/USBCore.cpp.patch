@@ -1,0 +1,216 @@
+--- /home/mark/eclipse-workspace-pio/MSD/Arduino/ArduinoCore-samd-master/cores/arduino/USB/USBCore.cpp	2018-02-20 16:49:11.000000000 -0500
++++ /home/mark/.platformio/packages/framework-arduinosam/cores/adafruit/USB/USBCore.cpp	2018-03-03 19:29:12.865976457 -0500
+@@ -75,7 +75,9 @@
+ 
+ //	DEVICE DESCRIPTOR
+ const DeviceDescriptor USB_DeviceDescriptorB = D_DEVICE(0xEF, 0x02, 0x01, 64, USB_VID, USB_PID, 0x100, IMANUFACTURER, IPRODUCT, ISERIAL, 1);
+-const DeviceDescriptor USB_DeviceDescriptor = D_DEVICE(0x00, 0x00, 0x00, 64, USB_VID, USB_PID, 0x100, IMANUFACTURER, IPRODUCT, ISERIAL, 1);
++const DeviceDescriptor USB_DeviceDescriptor  = D_DEVICE(0x00, 0x00, 0x00, 64, USB_VID, USB_PID, 0x100, IMANUFACTURER, IPRODUCT, ISERIAL, 1);
++
++//const DeviceQualifierDescriptor USB_DeviceQualifierDescriptor = D_DEVICE_QUALIFIER(0x00, 0x00, 0x00, 64, 1);
+ 
+ //==================================================================
+ 
+@@ -98,14 +100,22 @@
+ // Send a USB descriptor string. The string is stored as a
+ // plain ASCII string but is sent out as UTF-16 with the
+ // correct 2-byte prefix
+-bool USBDeviceClass::sendStringDescriptor(const uint8_t *string, uint8_t maxlen)
++bool USBDeviceClass::sendStringDescriptor(const uint8_t *string, uint16_t maxlen)
+ {
+-	if (maxlen < 2)
+-		return false;
++	if (maxlen == 0) return false; // USB2CV test TD.1.2 check 5
++	if (maxlen > 256) maxlen = 256; // USB2CV test TD.1.2 check 12
++
++	size_t slen = strlen((const char*)string) * 2 + 2;
++	if (slen > 256) slen = 256; // sanity check
+ 
++	if (maxlen > slen+2) maxlen = slen+2;
+ 	uint8_t buffer[maxlen];
+-	buffer[0] = strlen((const char*)string) * 2 + 2;
+-	buffer[1] = 0x03;
++	buffer[0] = slen;
++
++	// USB2CV test TD.1.2 check 3
++	if (maxlen == 1) return USBDevice.sendControl(buffer, 1);
++
++	buffer[1] = 0x03;   // USB2CV test TD.1.2 check 5
+ 
+ 	uint8_t i;
+ 	for (i = 2; i < maxlen && *string; i++) {
+@@ -145,6 +155,7 @@
+ 	total[0] += PluggableUSB().getInterface(&interfaces);
+ #endif
+ 
++
+ 	return interfaces;
+ }
+ 
+@@ -213,11 +224,31 @@
+ 		if (setup.wLength == 8)
+ 			_cdcComposite = 1;
+ 
+-		desc_addr = _cdcComposite ?  (const uint8_t*)&USB_DeviceDescriptorB : (const uint8_t*)&USB_DeviceDescriptor;
++		#ifdef CDC_ENABLED
++		desc_addr = _cdcComposite ?
++				(const uint8_t*)&USB_DeviceDescriptorB
++			  : (const uint8_t*)&USB_DeviceDescriptor;
++		#else
++		desc_addr = (const uint8_t*)&USB_DeviceDescriptor;
++		#endif
+ 
+-		if (*desc_addr > setup.wLength) {
++		if (*desc_addr > setup.wLength)
+ 			desc_length = setup.wLength;
+-		}
++
++	}
++	else if (t == USB_DEVICE_QUALIFIER)
++	{
++		/* as soon as we do not support High Speed we have to just stall the request
++		if (setup.wLength == 8)
++				_cdcComposite = 1;
++
++			desc_addr = (const uint8_t*)&USB_DeviceQualifierDescriptor;
++
++			if (*desc_addr > setup.wLength)
++				desc_length = setup.wLength;
++		*/
++		digitalWrite(LED_BUILTIN, HIGH);
++		return false;
+ 	}
+ 	else if (USB_STRING_DESCRIPTOR_TYPE == t)
+ 	{
+@@ -238,12 +269,12 @@
+ 			#define SERIAL_NUMBER_WORD_2	*(volatile uint32_t*)(0x0080A044)
+ 			#define SERIAL_NUMBER_WORD_3	*(volatile uint32_t*)(0x0080A048)
+ 
+-			char name[ISERIAL_MAX_LEN];
++			//char name[ISERIAL_MAX_LEN];
++			char name[256]={};
+ 			utox8(SERIAL_NUMBER_WORD_0, &name[0]);
+ 			utox8(SERIAL_NUMBER_WORD_1, &name[8]);
+ 			utox8(SERIAL_NUMBER_WORD_2, &name[16]);
+ 			utox8(SERIAL_NUMBER_WORD_3, &name[24]);
+-
+ 			PluggableUSB().getShortName(&name[32]);
+ 			return sendStringDescriptor((uint8_t*)name, setup.wLength);
+ #endif
+@@ -340,6 +371,7 @@
+ 	usbd.setUSBDeviceMode();
+ 	usbd.runInStandby();
+ 	usbd.setFullSpeed();
++	//usbd.setHiSpeed();
+ 
+ 	// Configure interrupts
+ 	NVIC_SetPriority((IRQn_Type) USB_IRQn, 0UL);
+@@ -640,11 +672,41 @@
+ 	0
+ };
+ 
++/*
++#include "/home/mark/eclipse-workspace-pio/MSD/.piolibdeps/Adafruit GFX Library_ID13/Adafruit_GFX.h"
++#include "/home/mark/eclipse-workspace-pio/MSD/.piolibdeps/Adafruit SHARP Memory Display_ID414/Adafruit_SharpMem.h"
++#include "/home/mark/eclipse-workspace-pio/MSD/lib/LCDCon/LcdConsole.h"
++*/
++uint32_t USBDeviceClass::epBank1waitTransmisson(uint32_t ep){
++  if (usbd.epBank1IsReady(ep)) {
++	// previous transfer is still not complete
++
++	// convert the timeout from microseconds to a number of times through
++	// the wait loop; it takes (roughly) 23 clock cycles per iteration.
++	uint32_t timeout = microsecondsToClockCycles(TX_TIMEOUT_MS * 1000) / 23;
++
++	// Wait for (previous) transfer to complete
++	// inspired by Paul Stoffregen's work on Teensy
++	while (!usbd.epBank1IsTransferComplete(ep)) {
++		if (LastTransmitTimedOut[ep] || timeout-- == 0) {
++			LastTransmitTimedOut[ep] = 1;
++
++			// set byte count to zero, so that ZLP is sent
++			// instead of stale data
++			usbd.epBank1SetByteCount(ep, 0);
++			return -1;
++		}
++	}
++  }
++  return 1;
++}
++
+ // Blocking Send of data to an endpoint
+ uint32_t USBDeviceClass::send(uint32_t ep, const void *data, uint32_t len)
+ {
+ 	uint32_t written = 0;
+ 	uint32_t length = 0;
++	//lcdConsole.println("  ep:"+String(ep)+ " len:"+String(len));
+ 
+ 	if (!_usbConfiguration)
+ 		return -1;
+@@ -659,37 +721,19 @@
+ #endif
+ 
+ 	// Flash area
+-	while (len != 0)
++	while (len > 0)
+ 	{
+-		if (usbd.epBank1IsReady(ep)) {
+-			// previous transfer is still not complete
+-
+-			// convert the timeout from microseconds to a number of times through
+-			// the wait loop; it takes (roughly) 23 clock cycles per iteration.
+-			uint32_t timeout = microsecondsToClockCycles(TX_TIMEOUT_MS * 1000) / 23;
+-
+-			// Wait for (previous) transfer to complete
+-			// inspired by Paul Stoffregen's work on Teensy
+-			while (!usbd.epBank1IsTransferComplete(ep)) {
+-				if (LastTransmitTimedOut[ep] || timeout-- == 0) {
+-					LastTransmitTimedOut[ep] = 1;
+-
+-					// set byte count to zero, so that ZLP is sent
+-					// instead of stale data
+-					usbd.epBank1SetByteCount(ep, 0);
+-					return -1;
+-				}
+-			}
+-		}
++		// Wait until previous Transmisson done or timed out
++		if (epBank1waitTransmisson(ep) < 0)	return -1;
+ 
+ 		LastTransmitTimedOut[ep] = 0;
+ 
+-		if (len >= EPX_SIZE) {
+-			length = EPX_SIZE - 1;
++		if ( len > EPX_SIZE ) {
++			///length = EPX_SIZE - 1; //mm7 why ??????
++			length = EPX_SIZE;
+ 		} else {
+ 			length = len;
+ 		}
+-
+ 		/* memcopy could be safer in multi threaded environment */
+ 		memcpy(&udd_ep_in_cache_buffer[ep], data, length);
+ 
+@@ -702,10 +746,21 @@
+ 		// RAM buffer is full, we can send data (IN)
+ 		usbd.epBank1SetReady(ep);
+ 
++		/* mm7: Wait until Transmisson done or timed out.
++		 * this makes sendinding serialized that guarantees that
++		 * data in udd_ep_in_cache_buffer[ep] buffer will not be changed
++		 * during this transmission.
++		 * It can generally slow down USB transmissions
++		 * because further data for sending will be prepared by sketch
++		 * after the transmission, not during it. */
++		//if (epBank1Transmisson_Synchronous)
++			//if (epBank1waitTransmisson(ep) < 0)	return -1;
++
+ 		written += length;
+ 		len -= length;
+-		data = (char *)data + length;
++		data = (uint8_t*)data + length;
+ 	}
++	//lcdConsole.println("  written:"+String(written));
+ 	return written;
+ }
+ 

@@ -124,7 +124,7 @@ private:
 	bool isSdCardReady;
 public:
 	uint8_t scsiStatus;
-
+	uint8_t align01;
 };
 
 #endif /* SCSIDevice_h */
