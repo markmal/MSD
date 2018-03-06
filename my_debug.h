@@ -29,4 +29,26 @@ void debugPrintlnSC(String s, char* cc, int len);
 
 void debugPrintlnSX(String s, uint8_t* cc, int len);
 
+// fake dummy class
+#define DUMMY_SD
+#ifdef DUMMY_SD
+
+#ifndef Sd2Card_h
+uint8_t const DUMMY_SPI_FULL_SPEED = 0;
+#endif
+
+class Sd2CardDummy {
+public:
+	Sd2CardDummy(){};
+	uint8_t init(uint8_t sckRateID, uint8_t chipSelectPin){return true;};
+	uint8_t type(){return 0;};
+	uint64_t cardSize(){return 8000000000;};
+	//void readCID(cid_t &cid){};
+	uint8_t errorCode(void) const {return 0;}
+    uint8_t errorData(void) const {return 0;}
+	uint8_t writeBlock(uint32_t LBA, uint8_t* data){return 512;};
+	uint8_t readBlock(uint32_t LBA, uint8_t* data){return 512;};
+};
+#endif
+
 #endif /* SRC_MY_DEBUG_H_ */

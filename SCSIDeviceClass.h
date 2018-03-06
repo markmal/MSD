@@ -31,7 +31,10 @@
 #include <stdint.h>
 //#include <SPI.h>
 //#include <SD.h>
+#include "my_debug.h"
+#ifndef DUMMY_SD
 #include "utility/Sd2Card.h"
+#endif
 
 #include "SCSI.h"
 
@@ -102,7 +105,12 @@ private:
 	uint32_t maxTransferLength;
 	uint32_t blockSize;
 
+#ifdef DUMMY_SD
+	Sd2CardDummy* sdCard;
+#else
 	Sd2Card* sdCard;
+#endif
+
 	uint8_t* transferData;
 
 	const int chipSelect = 4;

@@ -78,7 +78,11 @@ SCSIDeviceClass::SCSIDeviceClass():
 
 	memset(transferData, 0, MAX_TRANSFER_LENGTH);
 
+#ifdef DUMMY_SD
+	sdCard = new Sd2CardDummy();
+#else
 	sdCard = new Sd2Card();
+#endif
 }
 
 SCSIDeviceClass::~SCSIDeviceClass() {
@@ -187,15 +191,20 @@ int SCSIDeviceClass::handleInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len) {
 uint8_t  SCSIDeviceClass::SDCardType() {return sdCard->type();}
 uint64_t SCSIDeviceClass::SDCardSize() {return sdCard->cardSize();}
 String   SCSIDeviceClass::SDCardProductName() {
+#ifndef DUMMY_SD
 	cid_t cid;
 	sdCard->readCID(&cid);
 	//lcdConsole.println("Manuf Id:"+String(cid.mid));
 	return String(cid.pnm);
+#else
+	return "DUMMY SD";
+#endif
 }
 uint8_t  SCSIDeviceClass::SDCardErrorCode(){return sdCardErrorCode;}
 uint8_t  SCSIDeviceClass::SDCardErrorData(){return sdCardErrorData;}
 String  SCSIDeviceClass::getSDCardError(){
 	String  s="no error";
+#ifndef DUMMY_SD
 	switch (sdCardErrorCode){
 	case SD_CARD_ERROR_CMD0: s="timeout error for command CMD0"; break;
 	case SD_CARD_ERROR_CMD8: s="CMD8 was not accepted - not a valid SD card"; break;
@@ -220,6 +229,7 @@ String  SCSIDeviceClass::getSDCardError(){
 	case SD_CARD_ERROR_WRITE_TIMEOUT: s="timeout occurred during write programming"; break;
 	case SD_CARD_ERROR_SCK_RATE: s="incorrect rate selected"; break;
 	}
+#endif
 	if (sdCardErrorCode) s += "("+String(sdCardErrorData,16)+"h)";
 	return s;
 }
@@ -234,6 +244,10 @@ String  SCSIDeviceClass::getSCSIError(){
 int SCSIDeviceClass::begin(){
 	return initSD();
 }
+
+#ifndef Sd2Card_h
+#define SPI_FULL_SPEED 0
+#endif
 
 int SCSIDeviceClass::initSD(){
 	if (!sdCard->init(SPI_FULL_SPEED, chipSelect)) {
@@ -591,14 +605,14 @@ int SCSIDeviceClass::handleWrite10(SCSI_CBD_WRITE_10  &cbd, uint32_t len) {
 }
 
 int SCSIDeviceClass::handleRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPACITIES &cbd, uint32_t len){
-	debug+=("processRequestReadFormatCapacities:"+String(len));
+	debugPrintln("processRequestReadFormatCapacities:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	requestInfo="READ_FORMAT_CAPACITIES";
 	scsiStatus = GOOD;
 
 	uint16_t allocLen;
 	msb2lsb(cbd.allocation_length, allocLen);
-	debug+=("allocLen:"+String(allocLen));
+	debugPrintln("allocLen:"+String(allocLen));
 
 	/* this is hex dump of a good dev
 	 *     r1 r2 r3 CLH  NUM OF BLKS	r
@@ -629,7 +643,7 @@ int SCSIDeviceClass::handleRequestReadFormatCapacities(SCSI_CBD_READ_FORMAT_CAPA
 
 	size_t tl = sizeof(readFormatCapacitiesData);
 
-	debug+=("sizeof(readFormatCapacitiesData):"+String(tl));
+	debugPrintln("sizeof(readFormatCapacitiesData):"+String(tl));
 
 	if (tl>allocLen) tl=allocLen;
 	memcpy(transferData, &readFormatCapacitiesData, tl);

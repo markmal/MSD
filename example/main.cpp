@@ -17,8 +17,8 @@ void blink2(uint ms){
       digitalWrite(LED_BUILTIN, LOW);
 }
 
-//#define SD_DEBUG
-#define MAIN_DEBUG
+#define SD_DEBUG 1
+//#define MAIN_DEBUG
 
 #ifdef MAIN_DEBUG
   #ifdef CDC_ENABLED
@@ -62,7 +62,7 @@ void setup() {
 #endif
 
 #ifdef SD_DEBUG
-	SD.begin();
+	SD.begin(4); // 4!
 	delay(1000);
 	debugFile=SD.open("DEBUG.TRC",FILE_WRITE);
 #endif

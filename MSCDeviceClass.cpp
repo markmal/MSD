@@ -215,13 +215,16 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 		case REQUEST_DEVICE:
 			return false;
 		case REQUEST_INTERFACE:
+			debugPrint("   REQUEST_INTERFACE\n");
 			if (setup.wIndex != pluggedInterface)
 				return false;
 			switch (setup.bRequest) {
 				case GET_STATUS: {
+					debugPrint("     GET_STATUS\n");
 					uint8_t buff[] = { 0, 0 };
 					//USBDevice.armSend(0, buff, 2);
-					USBDevice.sendControl(buff, 2);
+					uint32_t r = USBDevice.sendControl(buff, 2);
+					debugPrintln("   r:"+String(r));
 					return true;
 					}
 				case CLEAR_FEATURE: return true;
@@ -229,18 +232,18 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 				case GET_INTERFACE: return true; //  get the Alternative Interface
 				case SET_INTERFACE: return true; //  set the Alternative Interface
 				case MSC_GET_MAX_LUN: {
+					debugPrint("     MSC_GET_MAX_LUN\n");
 					if (transferDirection!=1 || length!=1 || value!=0)
 						return false; // USB2VC wants stall endpoint on incorrect params.
-					debugPrint("     MSC_GET_MAX_LUN\n");
 					if ((length!=1) || (value!=0)) return false; // stall
 					uint32_t r = USBDevice.sendControl(&maxlun, 1);
 					debugPrintln("   r:"+String(r));
 					return true;
 					}
 				case MSC_RESET: {
+					debugPrint("     MSC_RESET\n");
 					if (transferDirection!=0 && length!=0 && value!=0)
 						return false;
-					debugPrint("     MSC_RESET\n");
 					if (reset()){
 						USBDevice.sendZlp(0); // USB2VC wants this
 						return true;
@@ -250,25 +253,32 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 			};// switch (setup.bRequest)
 			break;
 		case REQUEST_ENDPOINT: {
+			debugPrint("   REQUEST_ENDPOINT\n");
 			USBSetupEndpoint sep = (USBSetupEndpoint&)index;
 			uint8_t ep = sep.endpointNumber;
 			uint8_t dir = sep.direction;
+			debugPrintln("   ep:"+String(ep)+" dir:"+String(dir));
 			if (!(ep == bulkInEndpoint || ep == bulkOutEndpoint)) return false;
 			switch (setup.bRequest) {
 				case GET_STATUS: {
+					debugPrint("     GET_STATUS\n");
 					uint16_t isHalt = 0;
 					if (ep == bulkInEndpoint) isHalt = (isInEndpointHalt)?1:0;
 					else isHalt = (isOutEndpointHalt)?1:0;
 					//USBDevice.armSend(0, &isHalt, 2);
-					USBDevice.sendControl(&isHalt, 2);
+					debugPrintln("   isHalt:"+String(isHalt));
+					uint32_t r = USBDevice.sendControl(&isHalt, 2);
+					debugPrintln("   r:"+String(r));
 					return true;
 				}
 				case CLEAR_FEATURE:
+					debugPrint("     CLEAR_FEATURE\n");
 					if (ep == bulkInEndpoint) isInEndpointHalt = false;
 					else isOutEndpointHalt = false;
 					USBDevice.sendZlp(0); // USB2VC wants this
 					return true;
 				case SET_FEATURE:
+					debugPrint("     SET_FEATURE\n");
 					if (ep == bulkInEndpoint) isInEndpointHalt = true;
 					else isOutEndpointHalt = true;
 					USBDevice.sendZlp(0); // USB2VC wants this
@@ -547,10 +557,10 @@ bool MSCDeviceClass::checkCBW(USB_MSC_CBW& cbw) {
 int err=0;
 
 uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
-	debugPrint("MSC_::receiveBlock()... ");
+	//debugPrint("MSC_::receiveBlock()... ");
 	//print(debug); debug="";
 	uint32_t rxa = USBDevice.available(bulkOutEndpoint);
-	debugPrint("  USBDevice.available rx:"+String(rxa)+"\n");
+	//debugPrint("  USBDevice.available rx:"+String(rxa)+"\n");
 	//print(debug); debug="";
 
 	if (rxa >= USB_CBW_SIZE) {
