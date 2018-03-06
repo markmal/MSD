@@ -60,6 +60,12 @@
 #define MSC_SUBCLASS_IEEE 0x07 // Allocated by USB-IF for IEEE 1667. IEEE 1667 is defined outside of USB.
 #define MSC_SUBCLASS_VENDORSPECIFIC 0xFF
 
+// for USB Setup Packet bmRequestType.type
+#define USB_REQUEST_TYPE_STANDARD		0x0
+#define USB_REQUEST_TYPE_CLASS			0x1
+#define USB_REQUEST_TYPE_VENDOR			0x2
+#define USB_REQUEST_TYPE_RESERV			0x3
+
 #define MSC_REQUEST_STATUS   		0x00
 #define MSC_REQUEST_GET_REQUEST   	0xFC
 #define MSC_REQUEST_PUT_REQUEST   	0xFD
@@ -74,6 +80,20 @@
 #define MSC_SET_IDLE     0x06
 
 _Pragma("pack(1)")
+
+// Interface interpretation of USBSetup.wIndex
+typedef struct {
+	uint8_t interfaceNumber;
+	uint8_t reserv2;
+} USBSetupInterface;
+
+// Endpoint interpretation of USBSetup.wIndex
+typedef struct {
+	uint8_t endpointNumber:4, reserv1:3, direction:1;
+	uint8_t reserv2;
+} USBSetupEndpoint;
+
+
 typedef struct
 {
   uint8_t len;      // 9
@@ -115,6 +135,7 @@ struct USB_MSC_CBW {
 
 #define  USB_CBW_SIZE          		31	//!< CBW size
 #define  USB_CBW_SIGNATURE          0x43425355 //!< dCBWSignature value, LE
+#define  USB_CBW_SIGNATURE_BAD      0x43425BAD //!< dCBWSignature value, LE
 //#define  USB_CBW_SIGNATURE          0x55534243	//!< dCBWSignature value
 #define  USB_CBW_DIRECTION_IN       (1<<7)	//!< Data from device to host
 #define  USB_CBW_DIRECTION_OUT      (0<<7)	//!< Data from host to device
@@ -173,6 +194,7 @@ protected:
   bool setup(USBSetup& setup);
   uint8_t getShortName(char* name);
   bool reset();
+  bool checkCBW(USB_MSC_CBW& cbw);
 
   uint32_t receiveInRequest(); // receives IN block from USB
   uint32_t receiveOutRequest(); // receives OUT block from USB
@@ -181,11 +203,11 @@ private:
   USB_MSC_CBW cbw;
   USB_MSC_CSW csw;
   SCSIDeviceClass scsiDev;
-  uint32_t txEndpoint;
-  uint32_t rxEndpoint;
   EPTYPE_DESCRIPTOR_SIZE epType[NUM_ENDPOINTS];   ///< Container that defines the two bulk MIDI IN/OUT endpoints types
   //uint8_t response[4096];
   uint8_t* data; // = (uint8_t*)response;
+  uint8_t bulkInEndpoint;
+  uint8_t bulkOutEndpoint;
 
   //const uint32_t *endpointType;
   //uint16_t descriptorSize;
@@ -195,7 +217,10 @@ private:
   //const uint8_t numInterfaces;
   //uint8_t protocol;
   //uint8_t idle;
-
+  bool isHardStall;
+  bool isInEndpointHalt;
+  bool isOutEndpointHalt;
+  uint8_t align1;
 };
 
 //extern MSC_& MSC();
