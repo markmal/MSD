@@ -263,9 +263,9 @@ int SCSIDeviceClass::initSD(){
 	return GOOD;
 }
 
-String getSCSIError(){
+/*String getSCSIError(){
 	return "TODO"; //TODO
-}
+}*/
 
 int SCSIDeviceClass::handleTestUnitReady(SCSI_CBD_TEST_UNIT_READY  &cbd, uint32_t len) {
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
