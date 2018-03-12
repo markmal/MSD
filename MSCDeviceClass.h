@@ -25,6 +25,9 @@
 #ifndef MSC__MSC_h
 #define MSC__MSC_h
 
+//#define NVM_DEBUG 1
+#define NVM_ENABLE_PIN 10
+
 #include <stdint.h>
 #include <Arduino.h>
 #include <SCSIDeviceClass.h>
@@ -79,6 +82,23 @@
 #define MSC_SET_PROTOCOL 0x05
 #define MSC_SET_IDLE     0x06
 
+#define  USB_CBW_SIZE          		31	//!< CBW size
+#define  USB_CBW_SIGNATURE          0x43425355 //!< dCBWSignature value, LE
+#define  USB_CBW_SIGNATURE_BAD      0x43425BAD //!< dCBWSignature value, LE
+//#define  USB_CBW_SIGNATURE          0x55534243	//!< dCBWSignature value
+#define  USB_CBW_DIRECTION_IN       (1<<7)	//!< Data from device to host
+#define  USB_CBW_DIRECTION_OUT      (0<<7)	//!< Data from host to device
+#define  USB_CBW_LUN_MASK           0x0F	//!< Valid bits in bCBWLUN
+#define  USB_CBW_LEN_MASK           0x1F	//!< Valid bits in bCBWCBLength
+
+#define  USB_CSW_SIZE          		13	//!< CSW size
+#define  USB_CSW_SIGNATURE          0x53425355	//!< dCSWSignature value LE
+#define  USB_CSW_STATUS_PASS        0x00	//!< Command Passed
+#define  USB_CSW_STATUS_FAIL        0x01	//!< Command Failed
+#define  USB_CSW_STATUS_PHASE_ERROR          0x02	//!< Phase Error
+
+#define le32_t uint32_t
+
 _Pragma("pack(1)")
 
 // Interface interpretation of USBSetup.wIndex
@@ -117,8 +137,6 @@ public:
 };
 */
 
-#define le32_t uint32_t
-
 /**
  * Command Block Wrapper (CBW).
  */
@@ -133,15 +151,6 @@ struct USB_MSC_CBW {
 	uint8_t alignTo32b;
 };
 
-#define  USB_CBW_SIZE          		31	//!< CBW size
-#define  USB_CBW_SIGNATURE          0x43425355 //!< dCBWSignature value, LE
-#define  USB_CBW_SIGNATURE_BAD      0x43425BAD //!< dCBWSignature value, LE
-//#define  USB_CBW_SIGNATURE          0x55534243	//!< dCBWSignature value
-#define  USB_CBW_DIRECTION_IN       (1<<7)	//!< Data from device to host
-#define  USB_CBW_DIRECTION_OUT      (0<<7)	//!< Data from host to device
-#define  USB_CBW_LUN_MASK           0x0F	//!< Valid bits in bCBWLUN
-#define  USB_CBW_LEN_MASK           0x1F	//!< Valid bits in bCBWCBLength
-
 /**
  * Command Status Wrapper (CSW).
  */
@@ -154,13 +163,6 @@ struct USB_MSC_CSW {
 };
 _Pragma("pack()")
 
-
-#define  USB_CSW_SIZE          		13	//!< CSW size
-//#define  USB_CSW_SIGNATURE          0x55534253	//!< dCSWSignature value BE
-#define  USB_CSW_SIGNATURE          0x53425355	//!< dCSWSignature value LE
-#define  USB_CSW_STATUS_PASS        0x00	//!< Command Passed
-#define  USB_CSW_STATUS_FAIL        0x01	//!< Command Failed
-#define  USB_CSW_STATUS_PHASE_ERROR          0x02	//!< Phase Error
 
 
 // 512 is for High Speed only
@@ -192,6 +194,8 @@ protected:
   int getInterface(uint8_t* interfaceCount);
   int getDescriptor(USBSetup& setup);
   bool setup(USBSetup& setup);
+  bool doSetup0(USBSetup& setup);
+  bool doSetup(USBSetup& setup);
   uint8_t getShortName(char* name);
   bool reset();
   bool checkCBW(USB_MSC_CBW& cbw);
@@ -206,6 +210,7 @@ private:
   EPTYPE_DESCRIPTOR_SIZE epType[NUM_ENDPOINTS];   ///< Container that defines the two bulk MIDI IN/OUT endpoints types
   //uint8_t response[4096];
   uint8_t* data; // = (uint8_t*)response;
+
   uint8_t bulkInEndpoint;
   uint8_t bulkOutEndpoint;
 
@@ -217,6 +222,7 @@ private:
   //const uint8_t numInterfaces;
   //uint8_t protocol;
   //uint8_t idle;
+
   bool isHardStall;
   bool isInEndpointHalt;
   bool isOutEndpointHalt;

@@ -53,6 +53,10 @@ void blink(uint ms){
 
 MSCDeviceClass::MSCDeviceClass() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFACE, epType)
 {
+#ifdef NVM_DEBUG
+    pinMode(NVM_ENABLE_PIN, INPUT_PULLUP);
+#endif
+
 	debugPrint("Create MSC\n");
 	bulkOutEndpoint = 0;
 	bulkInEndpoint = 0;
@@ -82,7 +86,7 @@ String MSCDeviceClass::getError(){
 
 int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 {
-	debugPrint("MSC::getInterface("+String(*interfaceCount)+")\n");
+	//debugPrint("getInterface("+String(*interfaceCount)+")\n");
 
 	*interfaceCount += 1; // uses 1
 
@@ -103,7 +107,8 @@ int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 
 int MSCDeviceClass::getDescriptor(USBSetup& setup)
 {
-	debugPrint("MSC::getDescriptor\n");
+	//if(!lcdConsole.isStarted()) lcdConsole.begin();
+	//debugPrint("getDescriptor\n");
 	return 0;
 
 	debugPrint("MSC::getDescriptor\n");
@@ -186,11 +191,36 @@ int MSC_::SendReport(uint8_t id, const void* data, int len)
 }
 */
 
-uint8_t maxlun = 0;
 
-// it is required for MSC, host driver needs to set LUN etc...
+#ifdef NVM_DEBUG
+#include <FlashStorage.h>
+#endif
+
 bool MSCDeviceClass::setup(USBSetup& setup)
 {
+	bool r = doSetup0(setup);
+
+	#ifdef NVM_DEBUG
+	if (digitalRead(NVM_ENABLE_PIN) == 0)
+	{
+		  int len = debugLength();
+		  if (len>1022) {len = 1022;}
+		  CharsPage FlashStore;
+		  FlashStore.len = 2;
+		  memcpy(FlashStore.str, debugGetC(), len);
+		  FlashStore.str[len-1] = 0;
+		  FlashStorage(my_flash_store, CharsPage);
+		  my_flash_store.write(FlashStore);
+	}
+	#endif
+
+	return r;
+}
+
+
+bool MSCDeviceClass::doSetup(USBSetup& setup)
+{
+/*
 	debugPrint("MSC::setup\n");
 
 	debugPrint("RqTp:"+String(setup.bmRequestType,16)
@@ -203,32 +233,40 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 	+(" ValH:"+String(setup.wValueH,16))
 	+(" Indx:"+String(setup.wIndex,16))
 	+(" Leng:"+String(setup.wLength,16)));
-
+*/
+	uint8_t recipient = setup.direction;
+	//uint8_t transferDirection = setup.transferDirection;
+/*
 	uint8_t request = setup.bRequest;
 	uint8_t requestType = setup.bmRequestType;
 	uint8_t type = setup.type;
-	uint8_t recipient = setup.direction;
-	uint8_t transferDirection = setup.transferDirection;
 	uint16_t length = setup.wLength;
-	uint16_t value = setup.wValueL + (setup.wValueH << 8);
+	uint16_t value = setup.wValueH;
+	value <<= 8;
+	value |= setup.wValueL;
 	uint16_t index = setup.wIndex;
-
-	if (setup.type != USB_REQUEST_TYPE_CLASS) return false;
+*/
+	if (setup.type != USB_REQUEST_TYPE_CLASS) {
+		USBDevice.sendZlp(0); // USB2VC wants this
+		return false;
+	}
 
 	switch (recipient) {
 		case REQUEST_DEVICE:
+			//debugPrintln("RQ DVC:");
 			return false;
 		case REQUEST_INTERFACE:
-			debugPrintln("REQUEST_INTERFACE:"+String(index)+" plgInt:"+String(pluggedInterface));
-			if (setup.wIndex != pluggedInterface)
+			if (setup.wIndex != pluggedInterface){
+				//debugPrintln("Wrong INTFC:"+String(index)+" plgInt:"+String(pluggedInterface));
 				return false;
+			}
 			switch (setup.bRequest) {
 				case GET_STATUS: {
-					debugPrintln("GET_STATUS");
+					//debugPrintln("GET_STATUS");
 					uint8_t buff[] = { 0, 0 };
 					//USBDevice.armSend(0, buff, 2);
 					uint32_t r = USBDevice.sendControl(buff, 2);
-					debugPrintln("   r:"+String(r));
+					//debugPrintln("   r:"+String(r));
 					return true;
 					}
 				case CLEAR_FEATURE: return true;
@@ -236,60 +274,64 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 				case GET_INTERFACE: return true; //  get the Alternative Interface
 				case SET_INTERFACE: return true; //  set the Alternative Interface
 				case MSC_GET_MAX_LUN: {
-					debugPrint("MSC_GET_MAX_LUN\n");
-					if (transferDirection!=1 || length!=1 || value!=0){
-						debugPrint("STALL");
+					//debugPrint("MSC_GET_MAX_LUN\n");
+					if (setup.transferDirection!=1 || setup.wLength!=1
+						       || setup.wValueL!=0 || setup.wValueH!=0){
+						//debugPrint("STALL");
 						return false; // USB2VC wants stall endpoint on incorrect params.
 					}
+					uint8_t maxlun = 0;
 					uint32_t r = USBDevice.sendControl(&maxlun, 1);
-					debugPrintln("   r:"+String(r));
+					//debugPrintln("   r:"+String(r));
 					return true;
 					}
 				case MSC_RESET: {
-					debugPrint("MSC_RESET ln:"+String(length));
-					if (transferDirection!=0 && length!=0 && value!=0){
-						debugPrint("STALL");
+					//debugPrint("MSC_RESET ln:"+String(length));
+					if (setup.transferDirection!=0 || setup.wLength!=0
+						       || setup.wValueL!=0 || setup.wValueH!=0){
+						//debugPrint("STALL");
 						return false; // USB2VC wants stall endpoint on incorrect params.
 					}
-					debugPrint("reset");
+					//debugPrint("reset");
 					if (reset()){
 						USBDevice.sendZlp(0); // USB2VC wants this
-						debugPrint("ZLP");
+						//debugPrint("ZLP");
 						return true;
 					}
-					debugPrint("NOZLP");
+					//debugPrint("NOZLP");
 					return false; //false;
 				}
 			};// switch (setup.bRequest)
 			break;
 		case REQUEST_ENDPOINT: {
-			debugPrint("   REQUEST_ENDPOINT\n");
-			USBSetupEndpoint sep = (USBSetupEndpoint&)index;
-			uint8_t ep = sep.endpointNumber;
-			uint8_t dir = sep.direction;
-			debugPrintln("   ep:"+String(ep)+" dir:"+String(dir));
-			if (!(ep == bulkInEndpoint || ep == bulkOutEndpoint)) return false;
+			//debugPrint("REQUEST_ENDPOINT\n");
+			//USBSetupEndpoint sep = (USBSetupEndpoint&)setup.wIndex;
+			//uint8_t ep = sep.endpointNumber;
+			//uint8_t dir = sep.direction;
+			//debugPrintln("   ep:"+String(ep)+" dir:"+String(dir));
+			if ( setup.wIndex != bulkInEndpoint || setup.wIndex != bulkOutEndpoint)
+				return false;
 			switch (setup.bRequest) {
 				case GET_STATUS: {
-					debugPrint("GET_STATUS\n");
+					//debugPrint("GET_STATUS\n");
 					uint16_t isHalt = 0;
-					if (ep == bulkInEndpoint) isHalt = (isInEndpointHalt)?1:0;
+					if (setup.wIndex == bulkInEndpoint) isHalt = (isInEndpointHalt)?1:0;
 					else isHalt = (isOutEndpointHalt)?1:0;
 					//USBDevice.armSend(0, &isHalt, 2);
-					debugPrintln(" isHalt:"+String(isHalt));
+					//debugPrintln(" isHalt:"+String(isHalt));
 					uint32_t r = USBDevice.sendControl(&isHalt, 2);
-					debugPrintln("   r:"+String(r));
+					//debugPrintln("   r:"+String(r));
 					return true;
 				}
 				case CLEAR_FEATURE:
-					debugPrint("CLEAR_FEATURE\n");
-					if (ep == bulkInEndpoint) isInEndpointHalt = false;
+					//debugPrint("CLEAR_FEATURE\n");
+					if (setup.wIndex == bulkInEndpoint) isInEndpointHalt = false;
 					else isOutEndpointHalt = false;
 					USBDevice.sendZlp(0); // USB2VC wants this
 					return true;
 				case SET_FEATURE:
-					debugPrint("SET_FEATURE\n");
-					if (ep == bulkInEndpoint) isInEndpointHalt = true;
+					//debugPrint("SET_FEATURE\n");
+					if (setup.wIndex == bulkInEndpoint) isInEndpointHalt = true;
 					else isOutEndpointHalt = true;
 					USBDevice.sendZlp(0); // USB2VC wants this
 					return true;
@@ -302,8 +344,22 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 			return false;
 	}// switch (recipient)
 	return false;
+}
 
-	/* -- all further is old variant
+bool MSCDeviceClass::doSetup0(USBSetup& setup)
+{
+	uint8_t recipient = setup.direction;
+	uint8_t transferDirection = setup.transferDirection;
+	uint8_t request = setup.bRequest;
+	uint8_t requestType = setup.bmRequestType;
+	uint8_t type = setup.type;
+	uint16_t length = setup.wLength;
+	uint16_t value = setup.wValueH;
+	value <<= 8;
+	value |= setup.wValueL;
+	uint16_t index = setup.wIndex;
+
+	// all further is old variant
 	if (requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE)
 	{
 		debugPrint("   requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE\n");
@@ -313,7 +369,7 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 				return false; // USB2VC wants stall endpoint on incorrect params.
 			debugPrint("     MSC_GET_MAX_LUN\n");
 			if ((length!=1) || (value!=0)) return false; // stall
-
+			uint8_t maxlun = 0;
 			int r = USBDevice.sendControl(pluggedEndpoint, &maxlun, 1);
 			debugPrintln("   r:"+String(r));
 			return true;
@@ -353,7 +409,6 @@ bool MSCDeviceClass::setup(USBSetup& setup)
 
 	//digitalWrite(LED_BUILTIN, LOW);
 	return false;
-	*/
 }
 
 bool MSCDeviceClass::reset(){
@@ -567,24 +622,28 @@ bool MSCDeviceClass::checkCBW(USB_MSC_CBW& cbw) {
 int err=0;
 
 uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
-	//debugPrint("MSC_::receiveBlock()... ");
+	//debugPrint("receiveRequest()");
 	//print(debug); debug="";
 	uint32_t rxa = USBDevice.available(bulkOutEndpoint);
+	//USBDevice.recv(bulkOutEndpoint, &cbw, 0);
 	//debugPrint("  USBDevice.available rx:"+String(rxa)+"\n");
 	//print(debug); debug="";
 
 	if (rxa >= USB_CBW_SIZE) {
 		//println("avail, receiving "+String(rxa));
 		int r = USBDevice.recv(bulkOutEndpoint, &cbw, USB_CBW_SIZE);
-		//if (r > 0) debugPrint(" r:"+String(r)+"\n");
-
 		if(isHardStall){
 			USBDevice.stall(0);
 			return FAILURE;
 		}
-
+		debugPrintln("rcvd:"+String(r));
 		if (r==31 && checkCBW(cbw)){
 			debugCBW(cbw);
+			if(isHardStall) {
+				debugPrintln("in hard stall");
+				USBDevice.stall(0);
+				return FAILURE;
+			}
 			//isInEndpointHalt = false;
 			//isOutEndpointHalt = false;
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_IN){ // from the device to the host.
@@ -603,27 +662,28 @@ uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 			}
 		}else {
 			err++;
-			println("Bad CBW");
+			debugPrintln("Bad CBW");
 
 			isHardStall = true;
 
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_IN){
 				isInEndpointHalt = true;
-				println("Halt bulkInEndpoint");
-				//USBDevice.stall(bulkInEndpoint);
+				debugPrintln("stall bulkInEndpoint");
+				USBDevice.stall(bulkInEndpoint);
 			}
 			if (cbw.bmCBWFlags==USB_CBW_DIRECTION_OUT){
 				isOutEndpointHalt = true;
-				println("Halt bulkOutEndpoint");
-				//USBDevice.stall(bulkOutEndpoint);
+				debugPrintln("stall bulkOutEndpoint");
+				USBDevice.stall(bulkOutEndpoint);
 			}
+			debugPrintln("stall Ctrl");
 			USBDevice.stall(0);
 			return FAILURE;
 		}
 		return r;
 	}
 	else {
-		debugPrint("\n");
+		if (rxa>0) debugPrint("avlb rx:"+String(rxa));
 		scsiDev.requestInfo="";
 		return 0;
 	}

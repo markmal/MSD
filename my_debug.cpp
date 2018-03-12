@@ -14,6 +14,8 @@ int debugLength(){ return debug.length(); }
 
 String debugGet(){	return debug; }
 
+const char* debugGetC(){	return debug.c_str(); }
+
 void debugClear(){	debug = "";}
 
 void debugPrint(String s){
