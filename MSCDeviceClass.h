@@ -25,6 +25,9 @@
 #ifndef MSC__MSC_h
 #define MSC__MSC_h
 
+//#define NVM_DEBUG 1
+#define NVM_ENABLE_PIN 10
+
 #include <stdint.h>
 #include <Arduino.h>
 #include <SCSIDeviceClass.h>
@@ -192,6 +195,7 @@ protected:
   int getInterface(uint8_t* interfaceCount);
   int getDescriptor(USBSetup& setup);
   bool setup(USBSetup& setup);
+  bool doSetup(USBSetup& setup);
   uint8_t getShortName(char* name);
   bool reset();
   bool checkCBW(USB_MSC_CBW& cbw);

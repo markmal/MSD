@@ -16,6 +16,7 @@
 int debugLength();
 
 String debugGet();
+const char* debugGetC();
 
 void debugClear();
 
@@ -50,5 +51,7 @@ public:
 	uint8_t readBlock(uint32_t LBA, uint8_t* data){return 512;};
 };
 #endif
+
+typedef struct { uint16_t len; char str[1022]; } CharsPage;
 
 #endif /* SRC_MY_DEBUG_H_ */
