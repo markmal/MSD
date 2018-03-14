@@ -50,8 +50,9 @@
 
 
 SCSIDeviceClass::SCSIDeviceClass():
-	lastLBA(0), LBA(0), blockSize(SD_BLOCK_SIZE), sdCardErrorCode(0), sdCardErrorData(0),
-	senseKey(0), scsiStatus(GOOD)
+	lastLBA(0), LBA(0), blockSize(SD_BLOCK_SIZE),
+	senseKey(0), sdCardErrorCode(0), sdCardErrorData(0),
+	scsiStatus(GOOD)
 {
 	//sdCard = NULL;
 

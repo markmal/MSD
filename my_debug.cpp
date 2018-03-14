@@ -19,7 +19,7 @@ const char* debugGetC(){	return debug.c_str(); }
 void debugClear(){	debug = "";}
 
 void debugPrint(String s){
-	debug += s + "\n";
+	debug += s;
 }
 
 void debugPrintln(String s){

@@ -203,6 +203,11 @@ protected:
   uint32_t receiveInRequest(); // receives IN block from USB
   uint32_t receiveOutRequest(); // receives OUT block from USB
 
+public:
+  String getUsbDebug(){ return USBDevice.debugGet();}
+  void clearUsbDebug(){ USBDevice.debugClear();}
+  unsigned int getUsbLength(){ return USBDevice.debugLength();}
+
 private:
   USB_MSC_CBW cbw;
   USB_MSC_CSW csw;

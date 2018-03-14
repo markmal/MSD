@@ -47,8 +47,8 @@ public:
 	//void readCID(cid_t &cid){};
 	uint8_t errorCode(void) const {return 0;}
     uint8_t errorData(void) const {return 0;}
-	uint8_t writeBlock(uint32_t LBA, uint8_t* data){return 512;};
-	uint8_t readBlock(uint32_t LBA, uint8_t* data){return 512;};
+	uint8_t writeBlock(uint32_t LBA, uint8_t* data){return (uint8_t)512;};
+	uint8_t readBlock(uint32_t LBA, uint8_t* data){return (uint8_t)512;};
 };
 #endif
 
