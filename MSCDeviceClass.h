@@ -218,6 +218,8 @@ private:
 
   uint8_t bulkInEndpoint;
   uint8_t bulkOutEndpoint;
+  uint8_t bulkInEndpointAddr;
+  uint8_t bulkOutEndpointAddr;
 
   //const uint32_t *endpointType;
   //uint16_t descriptorSize;

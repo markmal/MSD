@@ -60,6 +60,8 @@ MSCDeviceClass::MSCDeviceClass() : PluggableUSBModule(NUM_ENDPOINTS, NUM_INTERFA
 	debugPrint("Create MSC\n");
 	bulkOutEndpoint = 0;
 	bulkInEndpoint = 0;
+	bulkOutEndpointAddr = 0;
+	bulkInEndpointAddr = 0;
 	epType[0] =  USB_ENDPOINT_TYPE_BULK | USB_ENDPOINT_OUT(0); //tx
 	epType[1] =  USB_ENDPOINT_TYPE_BULK | USB_ENDPOINT_IN(0); //rx
 	data = NULL;
@@ -101,7 +103,13 @@ int MSCDeviceClass::getInterface(uint8_t* interfaceCount)
 	};
 
 	bulkOutEndpoint = MSC_ENDPOINT_OUT;
-	bulkInEndpoint = MSC_ENDPOINT_IN | 0x80;
+	bulkInEndpoint = MSC_ENDPOINT_IN;
+	bulkOutEndpointAddr = USB_ENDPOINT_OUT(MSC_ENDPOINT_OUT);
+	bulkInEndpointAddr = USB_ENDPOINT_IN(MSC_ENDPOINT_IN);
+
+	epType[0] =  USB_ENDPOINT_TYPE_BULK | USB_ENDPOINT_OUT(MSC_ENDPOINT_OUT); //tx
+	epType[1] =  USB_ENDPOINT_TYPE_BULK | USB_ENDPOINT_IN(MSC_ENDPOINT_IN); //rx
+
 	return USB_SendControl(0, &MSCInterface, sizeof(MSCInterface));
 }
 
@@ -304,13 +312,13 @@ bool MSCDeviceClass::doSetup(USBSetup& setup)
 			USBDevice.debugPrint(" RQEP:"+String(setup.wIndex,16));
 			//USBDevice.debugPrint(" EPO:"+String(bulkOutEndpoint));
 			//USBDevice.debugPrint(" EPI:"+String(bulkInEndpoint));
-			if ( setup.wIndex != bulkInEndpoint && setup.wIndex != bulkOutEndpoint)
+			if ( setup.wIndex != bulkInEndpointAddr && setup.wIndex != bulkOutEndpointAddr)
 				return false;
 			switch (setup.bRequest) {
 				case GET_STATUS: {
 					USBDevice.debugPrint(" GTST");
 					uint8_t isHalt[] = { 0, 0 };
-					if (setup.wIndex == bulkInEndpoint)
+					if (setup.wIndex == bulkInEndpointAddr)
 						 isHalt[0] = (isInEndpointHalt)?1:0;
 					else isHalt[0] = (isOutEndpointHalt)?1:0;
 					USBDevice.armSend(0, isHalt, 2);
@@ -321,13 +329,13 @@ bool MSCDeviceClass::doSetup(USBSetup& setup)
 				}
 				case CLEAR_FEATURE:
 					USBDevice.debugPrint(" CLRFTR");
-					if (setup.wIndex == bulkInEndpoint) isInEndpointHalt = false;
+					if (setup.wIndex == bulkInEndpointAddr) isInEndpointHalt = false;
 					else isOutEndpointHalt = false;
 					USBDevice.sendZlp(0); // USB2VC wants this
 					return true;
 				case SET_FEATURE:
 					USBDevice.debugPrint(" SETFTR");
-					if (setup.wIndex == bulkInEndpoint) isInEndpointHalt = true;
+					if (setup.wIndex == bulkInEndpointAddr) isInEndpointHalt = true;
 					else isOutEndpointHalt = true;
 					USBDevice.sendZlp(0); // USB2VC wants this
 					return true;
