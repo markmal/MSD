@@ -89,6 +89,8 @@ public:
 	uint8_t  SDCardErrorData();
 	String   getSDCardError();
 	String   getSCSIError();
+	uint8_t  getMSCResultCase();
+
 	String requestInfo;
 
 private:
@@ -119,6 +121,7 @@ private:
 	uint16_t LBAcnt;
 	uint16_t maxTransferLBAcount;
 
+	uint8_t MSCResultCase; // 13 Cases: 1 is Case1 etc...
 	uint8_t senseKey;
 	uint8_t dataSource;
 	uint8_t sdCardErrorCode;

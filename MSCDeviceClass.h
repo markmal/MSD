@@ -86,8 +86,8 @@
 #define  USB_CBW_SIGNATURE          0x43425355 //!< dCBWSignature value, LE
 #define  USB_CBW_SIGNATURE_BAD      0x43425BAD //!< dCBWSignature value, LE
 //#define  USB_CBW_SIGNATURE          0x55534243	//!< dCBWSignature value
-#define  USB_CBW_DIRECTION_IN       (1<<7)	//!< Data from device to host
-#define  USB_CBW_DIRECTION_OUT      (0<<7)	//!< Data from host to device
+#define  USB_CBW_DIRECTION_IN       1	//!< Data from device to host
+#define  USB_CBW_DIRECTION_OUT      0	//!< Data from host to device
 #define  USB_CBW_LUN_MASK           0x0F	//!< Valid bits in bCBWLUN
 #define  USB_CBW_LEN_MASK           0x1F	//!< Valid bits in bCBWCBLength
 
@@ -144,7 +144,9 @@ struct USB_MSC_CBW {
 	le32_t dCBWSignature;	//!< Must contain 'USBC'
 	le32_t dCBWTag;	//!< Unique command ID
 	le32_t dCBWDataTransferLength;	//!< Number of bytes to transfer
-	uint8_t bmCBWFlags;	//!< Direction in bit 7
+	struct {
+		uint8_t reserved:6, obsolete:1, direction:1;
+	} bmCBWFlags;	//!< Direction in bit 7
 	uint8_t bCBWLUN;	//!< Logical Unit Number
 	uint8_t bCBWCBLength;	//!< Number of valid CBWCB bytes
 	uint8_t CBWCB[16];	//!< SCSI Command Descriptor Block
@@ -194,11 +196,12 @@ protected:
   int getInterface(uint8_t* interfaceCount);
   int getDescriptor(USBSetup& setup);
   bool setup(USBSetup& setup);
-  bool doSetup0(USBSetup& setup);
   bool doSetup(USBSetup& setup);
   uint8_t getShortName(char* name);
   bool reset();
-  bool checkCBW(USB_MSC_CBW& cbw);
+  void hardStall();
+  bool isCBWValid(USB_MSC_CBW& cbw);
+  bool isCBWMeaningful(USB_MSC_CBW& cbw);
 
   uint32_t receiveInRequest(); // receives IN block from USB
   uint32_t receiveOutRequest(); // receives OUT block from USB

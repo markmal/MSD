@@ -76,6 +76,7 @@ SCSIDeviceClass::SCSIDeviceClass():
 	maxTransferLBAcount = maxTransferLength / blockSize;
 	transferData = (uint8_t*)malloc(MAX_TRANSFER_LENGTH);
 	requestInfo = "";
+	MSCResultCase = 0;
 
 	memset(transferData, 0, MAX_TRANSFER_LENGTH);
 
@@ -673,6 +674,9 @@ int SCSIDeviceClass::handleStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
 	return 0;
 }
 
+uint8_t SCSIDeviceClass::getMSCResultCase(){
+	return MSCResultCase;
+}
 
 int SCSIDeviceClass::handleRequest(SCSI_CBD &cbd, uint32_t len){
 	scsiStatus = GOOD;
@@ -682,6 +686,8 @@ int SCSIDeviceClass::handleRequest(SCSI_CBD &cbd, uint32_t len){
 	incorrectLengthIndicator = false;
 
 	requestInfo=String(millis())+":";
+
+	debugPrintln("rqOpCd:"+String(cbd.generic.opcode,16));
 
 	if (cbd.generic.opcode == SCSI_TEST_UNIT_READY){
 		requestInfo+="TEST_UNIT_READY";
