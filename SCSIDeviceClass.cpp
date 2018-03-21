@@ -301,7 +301,7 @@ int SCSIDeviceClass::handleRequestSense(SCSI_CBD_REQUEST_SENSE  &cbd, uint32_t l
 	//lcdConsole.println("ModeSense:"+String(len));
 	dataSource = SCSIDEVICE_DATASOURCE_INTERNAL;
 	SCSI_CBD_REQUEST_SENSE_DATA requestSenseData;
-	int sz = sizeof(requestSenseData);
+	size_t sz = sizeof(requestSenseData);
 	memset(&requestSenseData,0,sz);
 	if (cbd.desc == 0){ // return fixed sense data
 		requestSenseData.valid = 1;
