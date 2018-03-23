@@ -62,6 +62,7 @@ public:
 	//from the host to the device
 	int writeData(uint8_t* &data);
 
+	int isRequestMeaningful(SCSI_CBD &cbd, uint32_t len, uint8_t msc_direction);
 	int handleRequest(SCSI_CBD &cbwcb, uint32_t len);
 
 	int handleInquiry(SCSI_CBD_INQUIRY  &cbd, uint32_t len);

@@ -202,6 +202,8 @@ protected:
   void hardStall();
   bool isCBWValid(USB_MSC_CBW& cbw);
   bool isCBWMeaningful(USB_MSC_CBW& cbw);
+  void drainInPipe(uint32_t len);
+  void drainOutPipe(uint32_t len);
 
   uint32_t receiveInRequest(); // receives IN block from USB
   uint32_t receiveOutRequest(); // receives OUT block from USB

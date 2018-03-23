@@ -128,7 +128,7 @@ int SCSIDeviceClass::handleInquirySupportedVPDPages(SCSI_CBD_INQUIRY  &cbd, uint
 	supportedVPDPages.reserv1 = 0x00;
 	uint8_t supported_page_list[3] = {0x00, 0x80, 0x83};
 	memcpy(supportedVPDPages.supported_page_list, supported_page_list, 3);
-	size_t pl = sizeof(supportedVPDPages);
+	size_t pl = sizeof(SCSI_INQUIRY_SUPPORTED_VPD_PAGES_DATA);
 	supportedVPDPages.page_length = pl-3;
 	memcpy(transferData, &supportedVPDPages, pl);
 	transferLength = pl;
@@ -330,7 +330,7 @@ int SCSIDeviceClass::handleModeSense6(SCSI_CBD_MODE_SENSE_6  &cbd, uint32_t len)
 	requestInfo+=" cbd.page_code:x"+String(cbd.page_code,16);
 	requestInfo+=" cbd.subpage_code:x"+String(cbd.subpage_code,16);
 	SCSI_CBD_MODE_SENSE_DATA_6 modeSenseData6;
-	int sz = sizeof(modeSenseData6);
+	int sz = sizeof(SCSI_CBD_MODE_SENSE_DATA_6);
 	memset(&modeSenseData6, 0, sz);
 	if (cbd.PC == 0){ // current values
 		if (cbd.page_code == 0x3F) {
@@ -441,28 +441,19 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 
 	int rl = 0;
 	while ( cnt > 0 ) {
-		//lcdConsole.println("readBlock:"+String(LBA) + " to:"+String(rl));
+		//debugPrintln("readBlk:"+String(LBA) + " to:"+String(rl));
 		//debug+="sdCard->readBlock("+String(LBA)+")\n";
-		uint8_t r = sdCard->readBlock(LBA, transferData+rl);
+		uint8_t r = sdCard->readBlock(LBA, transferData+rl); //r=0 failure r=1 success
 		//debug+="sdCard->readBlock r:"+String(r)+"\n";
 
 		if (r==0) {
+			debugPrintln("r:"+String(r));
 			scsiStatus = CHECK_CONDITION;
 			senseKey = MEDIUM_ERROR; // or NOT_READY ?
 			additionalSenseCode = NO_ASC;
 			additionalSenseCodeQualifier = NO_ASCQ;
 			return FAILURE;
 		}
-
-		/* // spoof it
-		if (LBA==0){
-			memset(transferData, 0, maxTransferLength);
-			memcpy(transferData, BLOCK0, 512);
-		} else
-			for(int i=0; i<blockSize; i++) {
-				transferData[rl+i] = (i%16)+0x41;
-			}
-		*/
 
 		cnt--;
 		LBAcnt++;
@@ -473,7 +464,10 @@ int SCSIDeviceClass::readData(uint8_t* &data){
 	return rl;
 }
 
-
+/*
+ * prepares the SCSIDeviceClass instance for read, sets LBA and size.
+ * Actual read happens later by calling readData() from MSCDeviceClass instance
+ */
 int SCSIDeviceClass::handleRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 	requestInfo+=" processRead10";
 
@@ -507,14 +501,14 @@ int SCSIDeviceClass::handleRead10(SCSI_CBD_READ_10 &cbd, uint32_t len) {
 		requestInfo+=" LBA OUT_OF_RANGE";
 		return FAILURE;
 	}
-	println(requestInfo);
+	//println(requestInfo);
 	//if (cbd.transfer_length_a == 0) len=0;
 	requestInfo+=" GOOD";
 	return txLen;
 }
 
 int SCSIDeviceClass::writeData(uint8_t* &data){
-	println(requestInfo+" writeData");
+	//println(requestInfo+" writeData");
 
 	data = transferData;
 
@@ -538,7 +532,7 @@ int SCSIDeviceClass::writeData(uint8_t* &data){
 
 		uint8_t r = sdCard->writeBlock(LBA, data+wl);
 		//uint8_t r = 1; //fake write
-		println(" writeBlock LBA:"+String(LBA)+" wl:"+String(wl));
+		//println(" writeBlock LBA:"+String(LBA)+" wl:"+String(wl));
 
 		if (r==0) {
 			scsiStatus = CHECK_CONDITION;
@@ -676,6 +670,48 @@ int SCSIDeviceClass::handleStartStop(SCSI_CBD_START_STOP  &cbd, uint32_t len){
 
 uint8_t SCSIDeviceClass::getMSCResultCase(){
 	return MSCResultCase;
+}
+
+int SCSIDeviceClass::isRequestMeaningful(SCSI_CBD &cbd, uint32_t len, uint8_t msc_direction){
+	if (cbd.generic.opcode == SCSI_TEST_UNIT_READY && len == 0){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_READ_10 && msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_WRITE_10 && msc_direction == 0){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL && len == 0){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_INQUIRY	&& len == 36 && msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_READ_CAPACITY_10 && len == 8 && msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_MODE_SENSE_6
+			&& len == sizeof(SCSI_CBD_MODE_SENSE_DATA_6) && msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_REQUEST_SENSE
+			&& len == sizeof(SCSI_CBD_REQUEST_SENSE_DATA) && msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_READ_FORMAT_CAPACITIES
+			&& len == sizeof(SCSI_CBD_READ_FORMAT_CAPACITIES_DATA)
+			&& msc_direction == 1){
+		return GOOD;
+	};
+	if (cbd.generic.opcode == SCSI_START_STOP && len == 0){
+		return GOOD;
+	};
+
+	scsiStatus = CHECK_CONDITION;
+	senseKey = ILLEGAL_REQUEST;
+	additionalSenseCode = INVALID_COMMAND_OPERATION_CODE;
+	return FAILURE;
 }
 
 int SCSIDeviceClass::handleRequest(SCSI_CBD &cbd, uint32_t len){

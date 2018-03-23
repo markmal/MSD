@@ -418,7 +418,7 @@ String MSCDeviceClass::getSCSIRequestInfo(){
 uint32_t MSCDeviceClass::receiveInRequest(){
 	debugPrint("RQIN:dtl:" + String(cbw.dCBWDataTransferLength)+"\n");
 	uint32_t tfLen = cbw.dCBWDataTransferLength;
-	//int iDTL = cbw.dCBWDataTransferLength; // int DTL needs for proper comparisons below
+	int iDTL = cbw.dCBWDataTransferLength; // int DTL needs for proper comparisons below
 
 	SCSI_CBD cbd;
 	memcpy(cbd.array, cbw.CBWCB, cbw.bCBWCBLength);
@@ -443,22 +443,23 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 		while ((slen < txlen) && (slen < cbw.dCBWDataTransferLength) && (rl>0)){
 			//debugPrint("about scsiDev.readData...");
 			rl = scsiDev.readData(data);
-			debugPrintln("rl:"+String(rl));
+			//debugPrintln("rl:"+String(rl));
 			if (rl < 0){ // SCSI error
 				break;
 			}
-			//rlen += rl;
-			//SerialUSB.println("  send rl:"+ String(rl));
-			debugPrintln("rl:"+ String(rl));
-			sl = USBDevice.send(bulkInEndpoint, data, rl);
-			debugPrintln("sl:"+ String(sl));
+			uint32_t rlu = rl;
+			if(rlu>(cbw.dCBWDataTransferLength-slen))
+				rlu=cbw.dCBWDataTransferLength-slen;
+			//debugPrintln("rl:"+ String(rlu));
+			sl = USBDevice.send(bulkInEndpoint, data, rlu);
+			//debugPrintln("sl:"+ String(sl));
 			//SerialUSB.println("  sent sl:"+ String(sl));
 			slen += sl;
 			//SerialUSB.println("  slen:"+ String(slen));
 			//lcdConsole.println("  txlen:"+ String(txlen)+" slen:"+ String(slen));
 		}
 	}
-	debugPrintln("txlen:"+ String(txlen)+" slen:"+ String(slen));
+	//debugPrintln("txlen:"+ String(txlen)+" slen:"+ String(slen));
 
 	/* For Data-In the device shall report in the dCSWDataResidue
 	 * the difference between the amount of data expected as stated
@@ -492,12 +493,14 @@ uint32_t MSCDeviceClass::receiveInRequest(){
 		}
 		else if (txlen > cbw.dCBWDataTransferLength)	{ //case 7
 			debugPrintln("case 7");
+			drainInPipe(cbw.dCBWDataTransferLength - slen);
+			/*
 			if (slen < cbw.dCBWDataTransferLength){
 				debugPrintln("slen:"+String(slen));
 				USBDevice.send(bulkInEndpoint, data, cbw.dCBWDataTransferLength - slen);
 			}else{
 				USBDevice.sendZlp(bulkInEndpoint); // send short packet
-			}
+			}*/
 			csw.bCSWStatus = USB_CSW_STATUS_PHASE_ERROR;
 		}
 	}
@@ -549,18 +552,18 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 					rlen += rl;
 					goto USB_RECEIVE_ERROR;
 				}
-				debugPrintln("rl:"+ String(rl));
+				//debugPrintln("rl:"+ String(rl));
 
 				uint32_t r = USBDevice.recv(bulkOutEndpoint, data+rl, rcvl-rl);
 
-				println("  recv r:"+ String(r));
+				//println("  recv r:"+ String(r));
 				rl+=r;
-				println("      next rl:"+ String(rl) + " of rcvl:"+ String(rcvl));
+				//println("      next rl:"+ String(rl) + " of rcvl:"+ String(rcvl));
 			}
 			rlen += rl;
-			println("  rlen:"+ String(rlen));
+			//println("  rlen:"+ String(rlen));
 			wl = scsiDev.writeData(data);
-			debugPrintln("wl:"+String(rl));
+			//debugPrintln("wl:"+String(rl));
 			if (wl < 0){ // SCSI error
 				break;
 			}
@@ -578,9 +581,9 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	USB_RECEIVE_ERROR:
 	SCSI_WRITE_ERROR:
 
-	debugPrintln("  rlen:"+ String(rlen) + " of txlen:"+ String(txlen));
+	//debugPrintln("  rlen:"+ String(rlen) + " of txlen:"+ String(txlen));
 	csw.dCSWDataResidue = cbw.dCBWDataTransferLength - rlen;
-	debugPrintln("RZD:"+String(csw.dCSWDataResidue));
+	//debugPrintln("RZD:"+String(csw.dCSWDataResidue));
 
 	if ((scsiDev.scsiStatus == GOOD) && (rlen == txlen) && (wlen == txlen)) {
 		csw.bCSWStatus = USB_CSW_STATUS_PASS;
@@ -603,12 +606,7 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 				csw.bCSWStatus = USB_CSW_STATUS_PHASE_ERROR;
 			}
 
-			uint32_t bDTL = cbw.dCBWDataTransferLength / 512 * 512;
-			while(rlen < bDTL){
-				rlen += USBDevice.recv(bulkOutEndpoint, data, 512); // recv garbage till DTL reached
-			}
-			while(cbw.dCBWDataTransferLength > rlen)
-				rlen += USBDevice.recv(bulkOutEndpoint, data, cbw.dCBWDataTransferLength - rlen); // recv garbage till DTL reached
+			drainOutPipe(cbw.dCBWDataTransferLength - rlen);
 		}
 	}
 
@@ -620,6 +618,30 @@ uint32_t MSCDeviceClass::receiveOutRequest(){ // receives block from USB
 	//USBDevice.flush(bulkInEndpoint);
 
 	return wlen;
+}
+
+void MSCDeviceClass::drainInPipe(uint32_t len) {
+	debugPrintln("drainInPipe:"+String(len));
+	uint32_t bDTL = len / 512 * 512;
+	uint32_t slen = 0;
+	while(slen < bDTL){
+		slen += USBDevice.send(bulkInEndpoint, data, 512);
+		//debugPrintln("sent:"+String(slen));
+	}
+	while(slen < len){
+		slen += USBDevice.send(bulkInEndpoint, data, len - slen);
+		//debugPrintln("rest:"+String(slen));
+	}
+}
+
+void MSCDeviceClass::drainOutPipe(uint32_t len) {
+	uint32_t bDTL = len / 512 * 512;
+	uint32_t rlen = 0;
+	while(rlen < bDTL){
+		rlen += USBDevice.recv(bulkOutEndpoint, data, 512);
+	}
+	while(rlen < len)
+		rlen += USBDevice.recv(bulkOutEndpoint, data, len - rlen);
 }
 
 bool MSCDeviceClass::isCBWValid(USB_MSC_CBW& cbw) {
@@ -642,6 +664,18 @@ bool MSCDeviceClass::isCBWMeaningful(USB_MSC_CBW& cbw) {
 		debugPrintln("bad Flg");
 		return false;
 	}
+
+	//SCSI_CBD* cbdp = (SCSI_CBD*)(cbw.CBWCB);
+	SCSI_CBD cbd;
+	memcpy(&cbd, cbw.CBWCB,16);
+	if ( scsiDev.isRequestMeaningful(cbd,
+			cbw.dCBWDataTransferLength,
+			cbw.bmCBWFlags.direction) < 0) {
+		debugCBW(cbw);
+		debugPrintln("Rq!Mnfl");
+		return false;
+	}
+
 	return true;
 }
 
@@ -679,15 +713,30 @@ uint32_t MSCDeviceClass::receiveRequest(){ // receives block from USB
 		return FAILURE;
 	}
 
-	debugCBW(cbw);
+	//debugCBW(cbw);
 
 	if ( ! isCBWValid(cbw)){
 		hardStall();
 		return FAILURE;
 	}
 
-	if ( ! isCBWMeaningful(cbw)){
+	if ( ! isCBWMeaningful(cbw)){ // Case 8
+		if (cbw.bmCBWFlags.direction == USB_CBW_DIRECTION_IN){
+			debugPrintln("drainInPipe");
+			drainInPipe(cbw.dCBWDataTransferLength);
+			USB_MSC_CSW csw;
+		}
+		if (cbw.bmCBWFlags.direction == USB_CBW_DIRECTION_OUT && cbw.dCBWDataTransferLength>0){
+			debugPrintln("drainOutPipe");
+			drainOutPipe(cbw.dCBWDataTransferLength);
+		}
 		// The response of a device to a CBW that is not meaningful is not specified.
+		USB_MSC_CSW csw;
+		csw.dCSWSignature = USB_CSW_SIGNATURE;
+		csw.dCSWTag = cbw.dCBWTag;
+		csw.dCSWDataResidue = cbw.dCBWDataTransferLength;
+		csw.bCSWStatus = USB_CSW_STATUS_FAIL;
+		USBDevice.send(bulkInEndpoint, &csw, USB_CSW_SIZE);
 		return FAILURE;
 	}
 
