@@ -235,9 +235,14 @@ private:
   //uint8_t protocol;
   //uint8_t idle;
 
-  bool isHardStall;
-  bool isInEndpointHalt;
-  bool isOutEndpointHalt;
+
+  volatile bool isBOTMSCReset;
+  volatile bool isInEndpointStall;
+  volatile bool isOutEndpointStall;
+
+  volatile bool isHardStall;
+  volatile bool isInEndpointHalt;
+  volatile bool isOutEndpointHalt;
   uint8_t align1;
 };
 
